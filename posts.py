@@ -21,7 +21,8 @@ class Posts(SqlInterface, Hashable) :
 		'updated',
 	)
 
-	multiple_post_keys =(
+	multiple_post_keys = (
+		'post_id',
 		'title',
 		'description',
 		'handle',
@@ -201,10 +202,10 @@ class Posts(SqlInterface, Hashable) :
 			raise InternalServerError('an error occurred while fetching posts.', logdata=logdata)
 
 		return {
-			'posts': {
-				i[0]: dict(zip(Posts.multiple_post_keys, i[1:]))
+			'posts': [
+				dict(zip(Posts.multiple_post_keys, i))
 				for i in data
-			},
+			],
 		}
 
 
