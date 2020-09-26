@@ -19,6 +19,7 @@ class Posts(SqlInterface, Hashable) :
 		'display_name',
 		'created',
 		'updated',
+		'tags',
 	)
 
 	multiple_post_keys = (
@@ -214,15 +215,22 @@ class Posts(SqlInterface, Hashable) :
 
 		try :
 			data = self.query("""
-				SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on
+				SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, array_agg(tags.tag)
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.users
 						ON posts.uploader = users.user_id
+					INNER JOIN kheina.public.users
+						ON posts.uploader = users.user_id
+					LEFT JOIN kheina.public.tag_post
+						ON tag_post.post_id = posts.post_id
+					LEFT JOIN kheina.public.tags
+						ON tags.tag_id = tag_post.tag_id
 				WHERE post_id = %s
 					AND (
 						posts.privacy_id = privacy_to_id('public')
 						OR posts.privacy_id = privacy_to_id('unlisted')
 					)
+				GROUP BY posts.post_id, users.user_id
 				LIMIT 1;
 				""",
 				(post_id,),
