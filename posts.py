@@ -88,7 +88,12 @@ class Posts(SqlInterface, Hashable) :
 					INSERT INTO kheina.public.post_votes
 					(user_id, post_id, upvote)
 					VALUES
-					(%s, %s, %s);
+					(%s, %s, %s)
+					ON CONFLICT ON CONSTRAINT post_votes_pkey DO 
+						UPDATE SET
+							upvote = %s
+						WHERE post_votes.user_id = %s
+							AND post_votes.post_id = %s;
 
 					SELECT COUNT(1), SUM(post_votes.upvote::int), posts.created_on
 					FROM kheina.public.post_votes
@@ -99,6 +104,7 @@ class Posts(SqlInterface, Hashable) :
 					""",
 					(
 						user_id, post_id, upvote,
+						upvote, user_id, post_id,
 						post_id,
 					),
 					fetch_one=True,
