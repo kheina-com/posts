@@ -15,7 +15,8 @@ class Posts(SqlInterface, Hashable) :
 		'title',
 		'description',
 		'filename',
-		'uploader',
+		'handle',
+		'display_name',
 		'created',
 		'updated',
 	)
@@ -23,7 +24,8 @@ class Posts(SqlInterface, Hashable) :
 	multiple_post_keys =(
 		'title',
 		'description',
-		'uploader',
+		'handle',
+		'display_name',
 	)
 
 	def __init__(self) :
@@ -158,7 +160,7 @@ class Posts(SqlInterface, Hashable) :
 							ON post_scores.post_id = tag_post.post_id
 						INNER JOIN kheina.public.users
 							ON posts.uploader = users.user_id
-					WHERE tags.tag = %s
+					WHERE tags.tag = any(%s)
 						AND tags.deprecated = false
 					GROUP BY posts.post_id, post_scores.{sort.name}, users.user_id
 					HAVING count(1) >= %s
@@ -211,8 +213,10 @@ class Posts(SqlInterface, Hashable) :
 
 		try :
 			data = self.query("""
-				SELECT posts.title, posts.description, posts.filename, posts.uploader, posts.created_on, posts.updated_on
+				SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on
 				FROM kheina.public.posts
+					INNER JOIN kheina.public.users
+						ON posts.uploader = users.user_id
 				WHERE post_id = %s
 					AND (
 						posts.privacy_id = privacy_to_id('public')
