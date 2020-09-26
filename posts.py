@@ -164,7 +164,7 @@ class Posts(SqlInterface, Hashable) :
 						AND tags.deprecated = false
 					GROUP BY posts.post_id, post_scores.{sort.name}, users.user_id
 					HAVING count(1) >= %s
-					ORDER BY post_scores.hot DESC NULLS LAST
+					ORDER BY post_scores.{sort.name} DESC NULLS LAST
 					LIMIT %s
 					OFFSET %s;
 					""",
@@ -177,9 +177,9 @@ class Posts(SqlInterface, Hashable) :
 					SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name
 					FROM kheina.public.posts
 						INNER JOIN kheina.public.post_scores
-							ON tag_post.post_id = posts.post_id
+							ON post_scores.post_id = posts.post_id
 						INNER JOIN kheina.public.users
-							ON posts.uploader = users.user_id
+							ON users.user_id = posts.uploader
 					WHERE posts.privacy_id = privacy_to_id('public')
 					ORDER BY post_scores.{sort.name} DESC NULLS LAST
 					LIMIT %s
