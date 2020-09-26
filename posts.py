@@ -145,12 +145,47 @@ class Posts(SqlInterface, Hashable) :
 		self._validateCount(count)
 
 		try :
-			data = self.query("""
-				SELECT kheina.public.fetch_posts_by_tag(%s, %s, %s, %s, %s);
-				""",
-				(user_id, sort.name, tags, count, count * (page - 1)),
-				fetch_all=True,
-			)
+			if tags :
+				data = self.query(f"""
+					SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name
+					FROM kheina.public.tags
+						INNER JOIN kheina.public.tag_post
+							ON tag_post.tag_id = tags.tag_id
+						INNER JOIN kheina.public.posts
+							ON posts.post_id = tag_post.post_id
+								AND posts.privacy_id = privacy_to_id('public')
+						INNER JOIN kheina.public.post_scores
+							ON post_scores.post_id = tag_post.post_id
+						INNER JOIN kheina.public.users
+							ON posts.uploader = users.user_id
+					WHERE tags.tag = %s
+						AND tags.deprecated = false
+					GROUP BY posts.post_id, post_scores.{sort.name}, users.user_id
+					HAVING count(1) >= %s
+					ORDER BY post_scores.hot DESC NULLS LAST
+					LIMIT %s
+					OFFSET %s;
+					""",
+					(tags, len(tags), count, count * (page - 1)),
+					fetch_all=True,
+				)
+
+			else :
+				data = self.query(f"""
+					SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name
+					FROM kheina.public.posts
+						INNER JOIN kheina.public.post_scores
+							ON tag_post.post_id = posts.post_id
+						INNER JOIN kheina.public.users
+							ON posts.uploader = users.user_id
+					WHERE posts.privacy_id = privacy_to_id('public')
+					ORDER BY post_scores.{sort.name} DESC NULLS LAST
+					LIMIT %s
+					OFFSET %s;
+					""",
+					(count, count * (page - 1)),
+					fetch_all=True,
+				)
 
 		except :
 			refid = uuid4().hex
@@ -185,7 +220,7 @@ class Posts(SqlInterface, Hashable) :
 					)
 				LIMIT 1;
 				""",
-				(user_id, sort.name, tags, count, count * (page - 1)),
+				(post_id,),
 				fetch_one=True,
 			)
 
