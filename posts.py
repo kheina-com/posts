@@ -7,6 +7,7 @@ from kh_common.logging import getLogger
 from kh_common.sql import SqlInterface
 from kh_common.hashing import Hashable
 from math import log10, sqrt
+from models import PostSort
 from uuid import uuid4
 
 
@@ -63,8 +64,8 @@ class Posts(SqlInterface, Hashable) :
 			raise BadRequest('the given post id is invalid.', logdata={ 'post_id': post_id })
 
 
-	def _validateVote(self, vote: bool) :
-		if not isinstance(vote, bool) :
+	def _validateVote(self, vote: Union[bool, type(None)]) :
+		if not isinstance(vote, (bool, type(None))) :
 			raise BadRequest('the given vote is invalid (vote value must be boolean. true = up, false = down)')
 
 
@@ -78,7 +79,7 @@ class Posts(SqlInterface, Hashable) :
 			raise BadRequest('the given count is invalid.', logdata={ 'count': count })
 
 
-	def vote(self, user_id: int, post_id: str, upvote: bool) :
+	def vote(self, user_id: int, post_id: str, upvote: Union[bool, type(None)]) :
 		self._validatePostId(post_id)
 		self._validateVote(upvote)
 
@@ -100,6 +101,7 @@ class Posts(SqlInterface, Hashable) :
 						INNER JOIN kheina.public.posts
 							ON posts.post_id = post_votes.post_id
 					WHERE post_votes.post_id = %s
+						AND post_votes.upvote IS NOT NULL
 					GROUP BY posts.post_id;
 					""",
 					(
@@ -109,8 +111,6 @@ class Posts(SqlInterface, Hashable) :
 					),
 					fetch_one=True,
 				)
-
-				transaction.commit()
 
 				up: int = data[1]
 				total: int = data[0]
@@ -168,13 +168,13 @@ class Posts(SqlInterface, Hashable) :
 			raise InternalServerError('an error occurred while processing upvote.', logdata=logdata)
 
 
-	def fetchPosts(self, user_id: int, tags: Tuple[str], count:int=64, page:int=1) :
+	def fetchPosts(self, user_id: int, sort: PostSort, tags: Tuple[str], count:int=64, page:int=1) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
 		try :
 			data = self.query("""
-				SELECT kheina.public.fetch_posts_by_tag(%s, %s, %s, %s);
+				SELECT kheina.public.fetch_posts_by_tag(%s, %s, %s, %s, %s);
 				""",
 				(tags, user_id, count, count * (page - 1)),
 				fetch_all=True,
