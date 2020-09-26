@@ -122,7 +122,7 @@ class Posts(SqlInterface, Hashable) :
 					VALUES
 					(%s, %s, %s, %s, %s, %s, %s)
 					ON CONFLICT ON CONSTRAINT post_scores_pkey DO 
-						UPDATE
+						UPDATE kheina.public.post_scores
 							upvotes = %s,
 							downvotes = %s,
 							top = %s,
