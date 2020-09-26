@@ -96,12 +96,12 @@ class Posts(SqlInterface, Hashable) :
 						WHERE post_votes.user_id = %s
 							AND post_votes.post_id = %s;
 
-					SELECT COUNT(1), SUM(post_votes.upvote::int), posts.created_on
-					FROM kheina.public.post_votes
-						INNER JOIN kheina.public.posts
-							ON posts.post_id = post_votes.post_id
-					WHERE post_votes.post_id = %s
-						AND post_votes.upvote IS NOT NULL
+					SELECT COUNT(post_votes.upvote), SUM(post_votes.upvote::int), posts.created_on
+					FROM kheina.public.posts
+						LEFT JOIN kheina.public.post_votes
+							ON post_votes.post_id = posts.post_id
+								AND post_votes.upvote IS NOT NULL
+					WHERE posts.post_id = %s
 					GROUP BY posts.post_id;
 					""",
 					(
