@@ -1,62 +1,34 @@
 from kh_common.exceptions.http_error import BadRequest, Forbidden, NotFound, InternalServerError
+from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
 from kh_common.caching import ArgsCache, SimpleCache
 from typing import Any, Dict, List, Tuple, Union
-from kh_common.config.calculated import z_score
-from kh_common.config.constants import epoch
 from kh_common.logging import getLogger
 from kh_common.sql import SqlInterface
 from kh_common.hashing import Hashable
-from math import log10, sqrt
 from models import PostSort
 from uuid import uuid4
 
 
-"""
-resources:
-	https://github.com/reddit-archive/reddit/blob/master/r2/r2/lib/db/_sorts.pyx
-	https://steamdb.info/blog/steamdb-rating
-	https://www.evanmiller.org/how-not-to-sort-by-average-rating.html
-	https://www.reddit.com/r/TheoryOfReddit/comments/bpmd3x/how_does_hot_vs_best_vscontroversial_vs_rising/envijlj
-"""
-
-
 class Posts(SqlInterface, Hashable) :
 
-	def __init__(self, z:float=0.8) :
+	single_post_keys = (
+		'title',
+		'description',
+		'filename',
+		'uploader',
+		'created',
+		'updated',
+	)
+
+	multiple_post_keys =(
+		'title',
+		'description',
+		'uploader',
+	)
+
+	def __init__(self) :
 		Hashable.__init__(self)
 		SqlInterface.__init__(self)
-		self.z = z_score[z]
-
-
-	def _sign(x: Union[int, float]) -> int :
-		return (x > 0) - (x < 0)
-
-
-	def _hot(self, up: int, down: int, time: float) -> float :
-		s: int = up - down
-		return Posts._sign(s) * log10(max(abs(s), 1)) + (time - epoch) / 45000
-
-
-	def _controversial(self, up: int, down: int) -> float :
-		return (up + down)**(min(up, down)/max(up, down)) if up and down else 0
-
-
-	def _best(self, up: int, total: int) -> float :
-		if not total :
-			return 0
-		s: float = up / total
-		return s - (s - 0.5) * 2**(-log10(total + 1))
-
-
-	def _confidence(self, up: int, total: int) -> float :
-		if not total :
-			return 0
-		phat = up / total
-		return (
-			(phat + self.z * self.z / (2 * total)
-			- self.z * sqrt((phat * (1 - phat)
-			+ self.z * self.z / (4 * total)) / total)) / (1 + self.z * self.z / total)
-		)
 
 
 	def _validatePostId(self, post_id: str) :
@@ -118,9 +90,9 @@ class Posts(SqlInterface, Hashable) :
 				created: float = data[2].timestamp()
 
 				top: int = up - down
-				hot: float = self._hot(up, down, created)
-				best: float = self._confidence(up, total)
-				controversial: float = self._controversial(up, down)
+				hot: float = calc_hot(up, down, created)
+				best: float = confidence(up, total)
+				controversial: float = calc_cont(up, down)
 
 				transaction.query("""
 					INSERT INTO kheina.public.post_scores
@@ -192,5 +164,42 @@ class Posts(SqlInterface, Hashable) :
 			raise InternalServerError('an error occurred while fetching posts.', logdata=logdata)
 
 		return {
-			'posts': [i[0] for i in data],
+			'posts': {
+				i[0]: dict(zip(Posts.multiple_post_keys, i[1:]))
+				for i in data
+			},
+		}
+
+
+	def getPost(self, user_id: int, post_id: str) :
+		self._validatePostId(post_id)
+
+		try :
+			data = self.query("""
+				SELECT posts.title, posts.description, posts.filename, posts.uploader, posts.created_on, posts.updated_on
+				FROM kheina.public.posts
+				WHERE post_id = %s
+					AND (
+						posts.privacy_id = privacy_to_id('public')
+						OR posts.privacy_id = privacy_to_id('unlisted')
+					)
+				LIMIT 1;
+				""",
+				(user_id, sort.name, tags, count, count * (page - 1)),
+				fetch_one=True,
+			)
+
+		except :
+			refid = uuid4().hex
+			logdata = {
+				'refid': refid,
+				'page': page,
+				'user_id': user_id,
+				'tags': tags,
+			}
+			self.logger.exception(logdata)
+			raise InternalServerError('an error occurred while fetch post.', logdata=logdata)
+
+		return {
+			post_id: dict(zip(Posts.single_post_keys, data)),
 		}
