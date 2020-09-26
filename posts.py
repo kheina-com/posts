@@ -122,14 +122,14 @@ class Posts(SqlInterface, Hashable) :
 					VALUES
 					(%s, %s, %s, %s, %s, %s, %s)
 					ON CONFLICT ON CONSTRAINT post_scores_pkey DO 
-						UPDATE kheina.public.post_scores
-						SET upvotes = %s,
+						UPDATE SET
+							upvotes = %s,
 							downvotes = %s,
 							top = %s,
 							hot = %s,
 							best = %s,
 							controversial = %s
-						WHERE post_id = %s;
+						WHERE post_scores.post_id = %s;
 					""",
 					(
 						post_id, up, down, top, hot, best, controversial,
