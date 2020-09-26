@@ -38,7 +38,7 @@ class Posts(SqlInterface, Hashable) :
 
 
 	def _controversial(self, up: int, down: int) -> float :
-		return (up + down)**(min(up, down)/max(up, down))
+		return (up + down)**(min(up, down)/max(up, down)) if up and down else 0
 
 
 	def _best(self, up: int, total: int) -> float :
@@ -112,8 +112,8 @@ class Posts(SqlInterface, Hashable) :
 					fetch_one=True,
 				)
 
-				up: int = data[1]
-				total: int = data[0]
+				up: int = data[1] or 0
+				total: int = data[0] or 0
 				down: int = total - up
 				created: float = data[2].timestamp()
 
@@ -165,7 +165,7 @@ class Posts(SqlInterface, Hashable) :
 				'user_id': user_id,
 			}
 			self.logger.exception(logdata)
-			raise InternalServerError('an error occurred while processing upvote.', logdata=logdata)
+			raise InternalServerError('an error occurred while processing vote.', logdata=logdata)
 
 
 	def fetchPosts(self, user_id: int, sort: PostSort, tags: Tuple[str], count:int=64, page:int=1) :
@@ -176,7 +176,7 @@ class Posts(SqlInterface, Hashable) :
 			data = self.query("""
 				SELECT kheina.public.fetch_posts_by_tag(%s, %s, %s, %s, %s);
 				""",
-				(tags, user_id, count, count * (page - 1)),
+				(user_id, sort.name, tags, count, count * (page - 1)),
 				fetch_all=True,
 			)
 
