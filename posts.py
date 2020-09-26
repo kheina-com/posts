@@ -116,7 +116,7 @@ class Posts(SqlInterface, Hashable) :
 				best: float = self._confidence(up, total)
 				controversial: float = self._controversial(up, down)
 
-				data = transaction.query("""
+				transaction.query("""
 					INSERT INTO kheina.public.post_scores
 					(post_id, upvotes, downvotes, top, hot, best, controversial)
 					VALUES
@@ -135,10 +135,21 @@ class Posts(SqlInterface, Hashable) :
 						post_id, up, down, top, hot, best, controversial,
 						up, down, top, hot, best, controversial, post_id,
 					),
-					fetch_all=True,
 				)
 
 				transaction.commit()
+
+			return {
+				post_id: {
+					'up': up,
+					'down': down,
+					'total': total,
+					'top': top,
+					'hot': hot,
+					'best': best,
+					'controversial': controversial,
+				}
+			}
 
 		except :
 			refid = uuid4().hex
