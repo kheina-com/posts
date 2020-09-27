@@ -30,7 +30,7 @@ async def v1Vote(req: VoteRequest, token_data:TokenData=None) :
 @validatedJson
 async def v1FetchPosts(req: FetchPostsRequest, token_data:TokenData=None) :
 	return UJSONResponse(
-		posts.fetchPosts(token_data.data['user_id'], req.sort, tuple(req.tags), req.count, req.page)
+		posts.fetchPosts(token_data.data['user_id'], req.sort, req.tags, req.count, req.page)
 	)
 
 
