@@ -1,6 +1,5 @@
+from kh_common.exceptions.http_error import BadRequest, Forbidden, HttpErrorHandler, NotFound
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
-from kh_common.exceptions.http_error import BadRequest, Forbidden, NotFound
-from kh_common.exceptions import GenericErrorHandler
 from typing import Any, Dict, List, Tuple, Union
 from kh_common.utilities.json import json_stream
 from kh_common.blocking import UserBlocking
@@ -40,7 +39,7 @@ class Posts(UserBlocking) :
 			raise BadRequest('the given count is invalid.', logdata={ 'count': count })
 
 
-	@GenericErrorHandler('processing vote')
+	@HttpErrorHandler('processing vote')
 	def vote(self, user_id: int, post_id: str, upvote: Union[bool, type(None)]) :
 		self._validatePostId(post_id)
 		self._validateVote(upvote)
@@ -199,7 +198,7 @@ class Posts(UserBlocking) :
 		]
 
 
-	@GenericErrorHandler('fetching posts')
+	@HttpErrorHandler('fetching posts')
 	def fetchPosts(self, user_id: int, sort: PostSort, tags: List[str], count:int=64, page:int=1) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
@@ -263,7 +262,7 @@ class Posts(UserBlocking) :
 		}
 
 
-	@GenericErrorHandler('retrieving post')
+	@HttpErrorHandler('retrieving post')
 	def getPost(self, user_id: int, post_id: str) :
 		self._validatePostId(post_id)
 
@@ -278,7 +277,7 @@ class Posts(UserBlocking) :
 		}
 
 
-	@GenericErrorHandler('retrieving user posts')
+	@HttpErrorHandler('retrieving user posts')
 	@ArgsCache(60)
 	def fetchUserPosts(self, user_id: int, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
