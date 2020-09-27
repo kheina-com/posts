@@ -219,13 +219,11 @@ class Posts(SqlInterface, Hashable) :
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.users
 						ON posts.uploader = users.user_id
-					INNER JOIN kheina.public.users
-						ON posts.uploader = users.user_id
 					LEFT JOIN kheina.public.tag_post
 						ON tag_post.post_id = posts.post_id
 					LEFT JOIN kheina.public.tags
 						ON tags.tag_id = tag_post.tag_id
-				WHERE post_id = %s
+				WHERE posts.post_id = %s
 					AND (
 						posts.privacy_id = privacy_to_id('public')
 						OR posts.privacy_id = privacy_to_id('unlisted')
@@ -241,9 +239,8 @@ class Posts(SqlInterface, Hashable) :
 			refid = uuid4().hex
 			logdata = {
 				'refid': refid,
-				'page': page,
 				'user_id': user_id,
-				'tags': tags,
+				'post_id': post_id,
 			}
 			self.logger.exception(logdata)
 			raise InternalServerError('an error occurred while fetch post.', logdata=logdata)
