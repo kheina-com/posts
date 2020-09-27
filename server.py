@@ -76,6 +76,7 @@ middleware = [
 routes = [
 	Route('/v1/vote', endpoint=v1Vote, methods=('POST',)),
 	Route('/v1/fetch_posts', endpoint=v1FetchPosts, methods=('POST',)),
+	Route('/v1/fetch_my_posts', endpoint=v1FetchMyPosts, methods=('POST',)),
 	Route('/v1/get_post', endpoint=v1GetPost, methods=('POST',)),
 	Route('/v1/help', endpoint=v1Help, methods=('GET',)),
 ]
