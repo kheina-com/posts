@@ -2,6 +2,7 @@ from kh_common.exceptions.http_error import BadRequest, Forbidden, NotFound, Int
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
 from kh_common.caching import ArgsCache, SimpleCache
 from typing import Any, Dict, List, Tuple, Union
+from kh_common.utilities.json import json_stream
 from kh_common.logging import getLogger
 from kh_common.sql import SqlInterface
 from kh_common.hashing import Hashable
@@ -246,5 +247,5 @@ class Posts(SqlInterface, Hashable) :
 			raise InternalServerError('an error occurred while fetch post.', logdata=logdata)
 
 		return {
-			post_id: dict(zip(Posts.single_post_keys, data)),
+			post_id: dict(zip(Posts.single_post_keys, json_stream(data))),
 		}
