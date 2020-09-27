@@ -18,14 +18,6 @@ posts = Posts()
 @authenticated
 @validatedJson
 async def v1Vote(req: VoteRequest, token_data:TokenData=None) :
-	"""
-	{
-		"post_id": str,
-		"title": Optional[str],
-		"description": Optional[str]
-	}
-	"""
-
 	vote = True if req.vote > 0 else False if req.vote < 0 else None
 
 	return UJSONResponse(
@@ -37,13 +29,6 @@ async def v1Vote(req: VoteRequest, token_data:TokenData=None) :
 @authenticated
 @validatedJson
 async def v1FetchPosts(req: FetchPostsRequest, token_data:TokenData=None) :
-	"""
-	{
-		"post_id": str,
-		"privacy": str
-	}
-	"""
-
 	return UJSONResponse(
 		posts.fetchPosts(token_data.data['user_id'], req.sort, tuple(req.tags), req.count, req.page)
 	)
@@ -52,13 +37,7 @@ async def v1FetchPosts(req: FetchPostsRequest, token_data:TokenData=None) :
 @jsonErrorHandler
 @authenticated
 @validatedJson
-async def v1GetPost(req: FetchPostsRequest, token_data:TokenData=None) :
-	"""
-	{
-		"post_id": str,
-	}
-	"""
-
+async def v1GetPost(req: GetPostRequest, token_data:TokenData=None) :
 	return UJSONResponse(
 		posts.getPost(token_data.data['user_id'], req.post_id)
 	)
