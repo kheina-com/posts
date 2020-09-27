@@ -216,25 +216,27 @@ class Posts(SqlInterface, Hashable) :
 
 		try :
 			data = self.query("""
-				SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, array_agg(tags.tag)
+				SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag)
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.users
 						ON posts.uploader = users.user_id
-					LEFT JOIN kheina.public.tag_post
-						ON tag_post.post_id = posts.post_id
-					LEFT JOIN kheina.public.tags
-						ON tags.tag_id = tag_post.tag_id
-							AND tags.deprecated = false
+					LEFT JOIN (
+						kheina.public.tag_post
+							INNER JOIN kheina.public.tags
+								ON tags.tag_id = tag_post.tag_id
+									AND tags.deprecated = false
+							INNER JOIN kheina.public.tag_classes
+								ON tag_classes.class_id = tags.class_id
+						) ON tag_post.post_id = posts.post_id
 				WHERE posts.post_id = %s
 					AND (
 						posts.privacy_id = privacy_to_id('public')
 						OR posts.privacy_id = privacy_to_id('unlisted')
 					)
-				GROUP BY posts.post_id, users.user_id
-				LIMIT 1;
+				GROUP BY posts.post_id, users.user_id, tag_classes.class_id;
 				""",
 				(post_id,),
-				fetch_one=True,
+				fetch_all=True,
 			)
 
 		except :
@@ -245,8 +247,25 @@ class Posts(SqlInterface, Hashable) :
 				'post_id': post_id,
 			}
 			self.logger.exception(logdata)
-			raise InternalServerError('an error occurred while fetch post.', logdata=logdata)
+			raise InternalServerError('an error occurred while retrieving data for provided post.', logdata=logdata)
+
+		if not data :
+			raise NotFound('no data was found for the provided post id.')
 
 		return {
-			post_id: dict(zip(Posts.single_post_keys, json_stream(data))),
+			post_id: {
+				'title': data[0][0],
+				'description': data[0][1],
+				'filename': data[0][2],
+				'created': data[0][5].timestamp(),
+				'updated': data[0][6].timestamp(),
+				'user': {
+					'handle': data[0][3],
+					'name': data[0][4],
+				},
+				'tags': {
+					row[6]: row[7]
+					for row in data
+				},
+			},
 		}
