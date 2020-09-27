@@ -126,34 +126,29 @@ class Posts(UserBlocking) :
 	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
 		if tags :
 			data = self.query(f"""
-				WITH p AS (
-					SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name
-					FROM kheina.public.tags
-						INNER JOIN kheina.public.tag_post
-							ON tag_post.tag_id = tags.tag_id
-						INNER JOIN kheina.public.posts
-							ON posts.post_id = tag_post.post_id
-								AND posts.privacy_id = privacy_to_id('public')
-						INNER JOIN kheina.public.post_scores
-							ON post_scores.post_id = tag_post.post_id
-						INNER JOIN kheina.public.users
-							ON posts.uploader = users.user_id
-					WHERE tags.tag = any(%s)
-						AND tags.deprecated = false
-					GROUP BY posts.post_id, post_scores.{sort.name}, users.user_id
-					HAVING count(1) >= %s
-					ORDER BY post_scores.{sort.name} DESC NULLS LAST
-					LIMIT %s
-					OFFSET %s
-				)
-				SELECT p.*, array_agg(tags.tag)
-				FROM p
-				INNER JOIN kheina.public.tag_post
-					ON tag_post.post_id = p.post_id
-				INNER JOIN kheina.public.tags
-					ON tags.tag_id = tag_post.tag_id
-						AND tags.deprecated = false
-
+				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(t2.tag)
+				FROM kheina.public.tags
+					INNER JOIN kheina.public.tag_post
+						ON tag_post.tag_id = tags.tag_id
+					INNER JOIN kheina.public.posts
+						ON posts.post_id = tag_post.post_id
+							AND posts.privacy_id = privacy_to_id('public')
+					INNER JOIN kheina.public.post_scores
+						ON post_scores.post_id = tag_post.post_id
+					INNER JOIN kheina.public.users
+						ON posts.uploader = users.user_id
+					INNER JOIN kheina.public.tag_post AS tp2
+						ON tp2.post_id = posts.post_id
+					INNER JOIN kheina.public.tags AS t2
+						ON t2.tag_id = tag_post.tag_id
+							AND tags.deprecated = false
+				WHERE tags.tag = any(%s)
+					AND tags.deprecated = false
+				GROUP BY posts.post_id, post_scores.{sort.name}, users.user_id
+				HAVING count(1) >= %s
+				ORDER BY post_scores.{sort.name} DESC NULLS LAST
+				LIMIT %s
+				OFFSET %s;
 				""",
 				(tags, len(tags), count, count * (page - 1)),
 				fetch_all=True,
