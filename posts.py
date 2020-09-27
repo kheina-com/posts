@@ -224,6 +224,7 @@ class Posts(SqlInterface, Hashable) :
 						ON tag_post.post_id = posts.post_id
 					LEFT JOIN kheina.public.tags
 						ON tags.tag_id = tag_post.tag_id
+							AND tags.deprecated = false
 				WHERE posts.post_id = %s
 					AND (
 						posts.privacy_id = privacy_to_id('public')
