@@ -19,10 +19,6 @@ class Posts(UserBlocking) :
 		'privacy',
 	)
 
-	def __init__(self) :
-		Hashable.__init__(self)
-		SqlInterface.__init__(self)
-
 
 	def _validatePostId(self, post_id: str) :
 		if len(post_id) != 8 :
@@ -128,7 +124,7 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(60)
-	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int)
+	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
 		if tags :
 			data = self.query(f"""
 				WITH p AS (
@@ -301,9 +297,7 @@ class Posts(UserBlocking) :
 			fetch_all=True,
 		)
 
-		return {
-			user_id: [
-				dict(zip(Posts.user_post_keys, row))
-				for row in data
-			],
-		}
+		return [
+			dict(zip(Posts.user_post_keys, row))
+			for row in data
+		]
