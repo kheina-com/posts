@@ -9,6 +9,8 @@ class PostSort(Enum) :
 	hot: str = 'hot'
 	best: str = 'best'
 	controversial: str = 'controversial'
+	new: str = 'new'
+	old: str = 'old'
 
 
 class VoteRequest(BaseModel) :
@@ -16,11 +18,15 @@ class VoteRequest(BaseModel) :
 	vote: Union[int, type(None)]
 
 
-class FetchPostsRequest(BaseModel) :
+class BaseFetchRequest(BaseModel) :
 	sort: PostSort
 	tags: List[str]
 	count: int = 64
 	page: int = 1
+
+
+class FetchPostsRequest(BaseFetchRequest) :
+	tags: List[str]
 
 
 class GetPostRequest(BaseModel) :

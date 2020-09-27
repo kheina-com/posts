@@ -1,16 +1,11 @@
-from models import FetchPostsRequest, GetPostRequest, VoteRequest
+from models import BaseFetchRequest, FetchPostsRequest, GetPostRequest, VoteRequest
 from kh_common.auth import authenticated, TokenData
 from kh_common.exceptions import jsonErrorHandler
 from kh_common.validation import validatedJson
 from starlette.responses import UJSONResponse
-from kh_common.logging import getLogger
-from starlette.requests import Request
-from traceback import format_tb
 from posts import Posts
-import time
 
 
-logger = getLogger()
 posts = Posts()
 
 
@@ -43,6 +38,15 @@ async def v1GetPost(req: GetPostRequest, token_data:TokenData=None) :
 	)
 
 
+@jsonErrorHandler
+@authenticated
+@validatedJson
+async def v1FetchMyPosts(req: BaseFetchRequest, token_data:TokenData=None) :
+	return UJSONResponse(
+		posts.fetchUserPosts(token_data.data['user_id'], req.sort, req.count, req.page)
+	)
+
+
 async def v1Help(req) :
 	return UJSONResponse({
 		'/v1/upload_image': {
@@ -60,11 +64,10 @@ async def shutdown() :
 	uploader.close()
 
 
-from starlette.applications import Starlette
-from starlette.staticfiles import StaticFiles
-from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.routing import Route, Mount
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.routing import Route
 
 middleware = [
 	Middleware(TrustedHostMiddleware, allowed_hosts={ 'localhost', '127.0.0.1', 'upload.kheina.com', 'upload-dev.kheina.com' }),

@@ -280,7 +280,7 @@ class Posts(UserBlocking) :
 
 	@GenericErrorHandler('retrieving user posts')
 	@ArgsCache(60)
-	def getUserPosts(self, user_id: int, sort: PostSort, count: int, page: int) :
+	def fetchUserPosts(self, user_id: int, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
 			SELECT posts.post_id, posts.title, posts.description, privacy.type
 			FROM kheina.public.posts
