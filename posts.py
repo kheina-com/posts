@@ -264,7 +264,7 @@ class Posts(SqlInterface, Hashable) :
 					'name': data[0][4],
 				},
 				'tags': {
-					row[6]: row[7]
+					row[7]: row[8]
 					for row in data
 				},
 			},
