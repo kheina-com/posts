@@ -205,8 +205,16 @@ class Posts(SqlInterface, Hashable) :
 
 		return {
 			'posts': [
-				dict(zip(Posts.multiple_post_keys, i))
-				for i in data
+				{
+					'post_id': row[0],
+					'title': row[1],
+					'description': row[2],
+					'user': {
+						'handle': row[3],
+						'name': row[4],
+					},
+				}
+				for row in data
 			],
 		}
 
