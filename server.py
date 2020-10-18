@@ -1,91 +1,55 @@
 from models import BaseFetchRequest, FetchPostsRequest, GetPostRequest, VoteRequest
-from kh_common.auth import authenticated, TokenData
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from kh_common.exceptions import jsonErrorHandler
-from kh_common.validation import validatedJson
 from starlette.responses import UJSONResponse
+from kh_common.auth import KhAuthMiddleware
+from fastapi import FastAPI, Request
+from kh_common.scoring import _sign
 from posts import Posts
 
+
+app = FastAPI()
+app.add_exception_handler(Exception, jsonErrorHandler)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts={ 'localhost', '127.0.0.1', 'posts.kheina.com', 'posts-dev.kheina.com' })
+app.add_middleware(KhAuthMiddleware)
 
 posts = Posts()
 
 
-@jsonErrorHandler
-@authenticated
-@validatedJson
-async def v1Vote(req: VoteRequest, token_data:TokenData=None) :
-	vote = True if req.vote > 0 else False if req.vote < 0 else None
-
-	return UJSONResponse(
-		posts.vote(token_data.data['user_id'], req.post_id, vote)
-	)
-
-
-@jsonErrorHandler
-@authenticated
-@validatedJson
-async def v1FetchPosts(req: FetchPostsRequest, token_data:TokenData=None) :
-	return UJSONResponse(
-		posts.fetchPosts(token_data.data['user_id'], req.sort, req.tags, req.count, req.page)
-	)
-
-
-@jsonErrorHandler
-@authenticated
-@validatedJson
-async def v1GetPost(req: GetPostRequest, token_data:TokenData=None) :
-	return UJSONResponse(
-		posts.getPost(token_data.data['user_id'], req.post_id)
-	)
-
-
-@jsonErrorHandler
-@authenticated
-@validatedJson
-async def v1FetchMyPosts(req: BaseFetchRequest, token_data:TokenData=None) :
-	return UJSONResponse(
-		posts.fetchUserPosts(token_data.data['user_id'], req.sort, req.count, req.page)
-	)
-
-
-async def v1Help(req) :
-	return UJSONResponse({
-		'/v1/upload_image': {
-			'auth': {
-				'required': True,
-				'user_id': 'int',
-			},
-			'file': 'image',
-			'post_id': 'Optional[str]',
-		},
-	})
-
-
+@app.on_event('shutdown')
 async def shutdown() :
-	uploader.close()
+	posts.close()
 
 
-from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.applications import Starlette
-from starlette.middleware import Middleware
-from starlette.routing import Route
+@app.post('/v1/vote')
+async def v1Vote(req: Request, body: VoteRequest) :
+	vote = _sign(body.vote)
 
-middleware = [
-	Middleware(TrustedHostMiddleware, allowed_hosts={ 'localhost', '127.0.0.1', 'upload.kheina.com', 'upload-dev.kheina.com' }),
-]
+	return UJSONResponse(
+		posts.vote(req.user.user_id, body.post_id, vote)
+	)
 
-routes = [
-	Route('/v1/vote', endpoint=v1Vote, methods=('POST',)),
-	Route('/v1/fetch_posts', endpoint=v1FetchPosts, methods=('POST',)),
-	Route('/v1/fetch_my_posts', endpoint=v1FetchMyPosts, methods=('POST',)),
-	Route('/v1/get_post', endpoint=v1GetPost, methods=('POST',)),
-	Route('/v1/help', endpoint=v1Help, methods=('GET',)),
-]
 
-app = Starlette(
-	routes=routes,
-	middleware=middleware,
-	on_shutdown=[shutdown],
-)
+@app.post('/v1/fetch_posts')
+async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
+	return UJSONResponse(
+		posts.fetchPosts(req.user.user_id, body.sort, body.tags, body.count, body.page)
+	)
+
+
+@app.post('/v1/fetch_my_posts')
+async def v1GetPost(req: Request, body: GetPostRequest) :
+	return UJSONResponse(
+		posts.getPost(req.user.user_id, body.post_id)
+	)
+
+
+@app.post('/v1/get_post')
+async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
+	return UJSONResponse(
+		posts.fetchUserPosts(req.user.user_id, body.sort, body.count, body.page)
+	)
+
 
 if __name__ == '__main__' :
 	from uvicorn.main import run

@@ -140,7 +140,7 @@ class Posts(UserBlocking) :
 					INNER JOIN kheina.public.tag_post AS tp2
 						ON tp2.post_id = posts.post_id
 					INNER JOIN kheina.public.tags AS t2
-						ON t2.tag_id = tag_post.tag_id
+						ON t2.tag_id = tp2.tag_id
 							AND tags.deprecated = false
 				WHERE tags.tag = any(%s)
 					AND tags.deprecated = false

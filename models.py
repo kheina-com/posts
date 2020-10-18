@@ -15,7 +15,7 @@ class PostSort(Enum) :
 
 class VoteRequest(BaseModel) :
 	post_id: str
-	vote: Union[int, type(None)]
+	vote: int
 
 
 class BaseFetchRequest(BaseModel) :
