@@ -23,7 +23,7 @@ async def shutdown() :
 
 @app.post('/v1/vote')
 async def v1Vote(req: Request, body: VoteRequest) :
-	vote = True if req.vote > 0 else False if req.vote < 0 else None
+	vote = True if body.vote > 0 else False if body.vote < 0 else None
 
 	return UJSONResponse(
 		posts.vote(req.user.user_id, body.post_id, vote)
@@ -37,14 +37,14 @@ async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
 	)
 
 
-@app.post('/v1/fetch_my_posts')
+@app.post('/v1/get_post')
 async def v1GetPost(req: Request, body: GetPostRequest) :
 	return UJSONResponse(
 		posts.getPost(req.user.user_id, body.post_id)
 	)
 
 
-@app.post('/v1/get_post')
+@app.post('/v1/fetch_my_posts')
 async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
 	return UJSONResponse(
 		posts.fetchUserPosts(req.user.user_id, body.sort, body.count, body.page)
