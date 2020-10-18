@@ -23,7 +23,7 @@ async def shutdown() :
 
 @app.post('/v1/vote')
 async def v1Vote(req: Request, body: VoteRequest) :
-	vote = _sign(body.vote)
+	vote = True if req.vote > 0 else False if req.vote < 0 else None
 
 	return UJSONResponse(
 		posts.vote(req.user.user_id, body.post_id, vote)

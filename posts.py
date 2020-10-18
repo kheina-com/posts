@@ -26,7 +26,7 @@ class Posts(UserBlocking) :
 
 	def _validateVote(self, vote: Union[bool, type(None)]) :
 		if not isinstance(vote, (bool, type(None))) :
-			raise BadRequest('the given vote is invalid (vote value must be boolean. true = up, false = down)')
+			raise BadRequest('the given vote is invalid (vote value must be integer. 1 = up, -1 = down, 0 or null to remove vote)')
 
 
 	def _validatePageNumber(self, page_number: int) :
