@@ -4,13 +4,12 @@ from kh_common.exceptions import jsonErrorHandler
 from starlette.responses import UJSONResponse
 from kh_common.auth import KhAuthMiddleware
 from fastapi import FastAPI, Request
-from kh_common.scoring import _sign
 from posts import Posts
 
 
 app = FastAPI()
 app.add_exception_handler(Exception, jsonErrorHandler)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts={ 'localhost', '127.0.0.1', 'posts.kheina.com', 'posts-dev.kheina.com' })
+app.add_middleware(TrustedHostMiddleware, allowed_hosts={ 'localhost', '127.0.0.1', '*.kheina.com' })
 app.add_middleware(KhAuthMiddleware)
 
 posts = Posts()
@@ -53,4 +52,4 @@ async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
 
 if __name__ == '__main__' :
 	from uvicorn.main import run
-	run(app, host='127.0.0.1', port=5003)
+	run(app, host='0.0.0.0', port=5003)
