@@ -1,17 +1,9 @@
 from models import BaseFetchRequest, FetchPostsRequest, GetPostRequest, VoteRequest
-from starlette.middleware.trustedhost import TrustedHostMiddleware
-from kh_common.exceptions import jsonErrorHandler
-from starlette.responses import UJSONResponse
-from kh_common.auth import KhAuthMiddleware
-from fastapi import FastAPI, Request
+from kh_common.server import Request, ServerApp, UJSONResponse
 from posts import Posts
 
 
-app = FastAPI()
-app.add_exception_handler(Exception, jsonErrorHandler)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts={ 'localhost', '127.0.0.1', '*.kheina.com' })
-app.add_middleware(KhAuthMiddleware)
-
+app = ServerApp()
 posts = Posts()
 
 
