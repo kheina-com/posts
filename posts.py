@@ -207,12 +207,23 @@ class Posts(UserBlocking) :
 			],
 		}
 
+	
+	@ArgsCache(600)
+	def _get_privacy_map(self) :
+		data = self.query("""
+			SELECT privacy_id, type
+			FROM kheina.public.privacy;
+			""",
+			fetch_all=True,
+		)
+		return dict(data)
+
 
 	@ArgsCache(60)
 	def _get_post(self, post_id: str) :
 
 		data = self.query("""
-			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag)
+			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -225,10 +236,6 @@ class Posts(UserBlocking) :
 							ON tag_classes.class_id = tags.class_id
 					) ON tag_post.post_id = posts.post_id
 			WHERE posts.post_id = %s
-				AND (
-					posts.privacy_id = privacy_to_id('public')
-					OR posts.privacy_id = privacy_to_id('unlisted')
-				)
 			GROUP BY posts.post_id, users.user_id, tag_classes.class_id;
 			""",
 			(post_id,),
@@ -252,7 +259,8 @@ class Posts(UserBlocking) :
 				row[7]: row[8]
 				for row in data
 			},
-			'tags_flattened': list(flatten(row[8] for row in data)),
+			'tags_flattened': set(flatten(row[8] for row in data)),
+			'privacy': self._get_privacy_map()[data[0][9]],
 		}
 
 
@@ -264,6 +272,9 @@ class Posts(UserBlocking) :
 		blocked_tags = self.user_blocked_tags(user_id)
 
 		if post.pop('tags_flattened') & blocked_tags :
+			raise NotFound('no data was found for the provided post id.')
+
+		if post['privacy'] not in { 'public', 'unlisted' } :
 			raise NotFound('no data was found for the provided post id.')
 
 		return {
