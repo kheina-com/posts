@@ -25,7 +25,7 @@ class BaseFetchRequest(BaseModel) :
 
 
 class FetchPostsRequest(BaseFetchRequest) :
-	tags: List[str]
+	tags: Optional[List[str]]
 
 
 class GetPostRequest(BaseModel) :
