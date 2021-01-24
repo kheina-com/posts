@@ -3,7 +3,7 @@ from kh_common.server import Request, ServerApp, UJSONResponse
 from posts import Posts
 
 
-app = ServerApp()
+app = ServerApp(auth_required=False)
 posts = Posts()
 
 
@@ -14,6 +14,7 @@ async def shutdown() :
 
 @app.post('/v1/vote')
 async def v1Vote(req: Request, body: VoteRequest) :
+	req.user.authenticated()
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
 
 	return UJSONResponse(
@@ -37,6 +38,7 @@ async def v1GetPost(req: Request, body: GetPostRequest) :
 
 @app.post('/v1/fetch_my_posts')
 async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
+	req.user.authenticated()
 	return UJSONResponse(
 		posts.fetchUserPosts(req.user.user_id, body.sort, body.count, body.page)
 	)
