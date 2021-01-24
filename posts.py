@@ -197,7 +197,7 @@ class Posts(UserBlocking) :
 		self._validateCount(count)
 
 		posts = self._fetch_posts(sort, tuple(tags), count, page)
-		blocked_tags = self.userBlockedTags(user_id)
+		blocked_tags = self.user_blocked_tags(user_id)
 
 		return {
 			'posts': [
@@ -260,7 +260,7 @@ class Posts(UserBlocking) :
 		self._validatePostId(post_id)
 
 		post = self._get_post(post_id)
-		blocked_tags = self.userBlockedTags(user_id)
+		blocked_tags = self.user_blocked_tags(user_id)
 
 		if post.pop('tags_flattened') & blocked_tags :
 			raise NotFound('no data was found for the provided post id.')
