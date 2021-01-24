@@ -3,6 +3,7 @@ from kh_common.scoring import confidence, controversial as calc_cont, hot as cal
 from typing import Any, Dict, List, Tuple, Union
 from kh_common.utilities.json import json_stream
 from kh_common.blocking import UserBlocking
+from kh_common.utilities import flatten
 from kh_common.caching import ArgsCache
 from kh_common.logging import getLogger
 from models import PostSort
@@ -192,11 +193,11 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('fetching posts')
-	def fetchPosts(self, user_id: int, sort: PostSort, tags: List[str], count:int=64, page:int=1) :
+	def fetchPosts(self, user_id: int, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = self._fetch_posts(sort, tuple(tags), count, page)
+		posts = self._fetch_posts(sort, tuple(tags) if tags else None, count, page)
 		blocked_tags = self.user_blocked_tags(user_id)
 
 		return {
@@ -251,7 +252,7 @@ class Posts(UserBlocking) :
 				row[7]: row[8]
 				for row in data
 			},
-			'tags_flattened': set(row[8] for row in data),
+			'tags_flattened': list(flatten(row[8] for row in data)),
 		}
 
 
