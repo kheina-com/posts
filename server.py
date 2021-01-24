@@ -29,10 +29,10 @@ async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
 	)
 
 
-@app.post('/v1/get_post')
-async def v1GetPost(req: Request, body: GetPostRequest) :
+@app.get('/v1/post/{post_id}')
+async def v1GetPost(req: Request, post_id: str) :
 	return UJSONResponse(
-		posts.getPost(req.user.user_id, body.post_id)
+		posts.getPost(req.user.user_id, post_id)
 	)
 
 

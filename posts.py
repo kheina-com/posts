@@ -203,11 +203,11 @@ class Posts(UserBlocking) :
 		return {
 			'posts': [
 				post for post in posts
-				if not post.pop('tags') & blocked_tags
+				if post['tags'] & blocked_tags
 			],
 		}
 
-	
+
 	@ArgsCache(600)
 	def _get_privacy_map(self) :
 		data = self.query("""
@@ -219,11 +219,24 @@ class Posts(UserBlocking) :
 		return dict(data)
 
 
+	@ArgsCache(600)
+	def _get_media_type_map(self) :
+		data = self.query("""
+			SELECT media_type_id, file_type, mime_type
+			FROM kheina.public.media_type;
+			""",
+			fetch_all=True,
+		)
+		return {
+			row[0]: { 'file_type': row[1], 'mime_type': row[2] }
+			for row in data
+		}
+
+
 	@ArgsCache(60)
 	def _get_post(self, post_id: str) :
-
 		data = self.query("""
-			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id
+			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id, posts.media_type_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -261,6 +274,7 @@ class Posts(UserBlocking) :
 			},
 			'tags_flattened': set(flatten(row[8] for row in data)),
 			'privacy': self._get_privacy_map()[data[0][9]],
+			'media_type': self._get_media_type_map()[data[0][10]],
 		}
 
 
