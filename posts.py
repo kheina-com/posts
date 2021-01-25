@@ -203,7 +203,7 @@ class Posts(UserBlocking) :
 		return {
 			'posts': [
 				post for post in posts
-				if post['tags'] & blocked_tags
+				if not post['tags'] & blocked_tags
 			],
 		}
 
