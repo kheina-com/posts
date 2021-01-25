@@ -202,7 +202,11 @@ class Posts(UserBlocking) :
 
 		return {
 			'posts': [
-				post for post in posts
+				{
+					**post,
+					'tags': list(post['tags']),
+				}
+				for post in posts
 				if not post['tags'] & blocked_tags
 			],
 		}
