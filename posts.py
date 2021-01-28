@@ -6,6 +6,7 @@ from kh_common.blocking import UserBlocking
 from kh_common.utilities import flatten
 from kh_common.caching import ArgsCache
 from kh_common.logging import getLogger
+from kh_common.auth import KhUser
 from models import PostSort
 from uuid import uuid4
 
@@ -41,7 +42,7 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('processing vote')
-	def vote(self, user_id: int, post_id: str, upvote: Union[bool, type(None)]) :
+	def vote(self, user: KhUser, post_id: str, upvote: Union[bool, type(None)]) :
 		self._validatePostId(post_id)
 		self._validateVote(upvote)
 
@@ -66,8 +67,8 @@ class Posts(UserBlocking) :
 				GROUP BY posts.post_id;
 				""",
 				(
-					user_id, post_id, upvote,
-					upvote, user_id, post_id,
+					user.user_id, post_id, upvote,
+					upvote, user.user_id, post_id,
 					post_id,
 				),
 				fetch_one=True,
@@ -193,12 +194,12 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('fetching posts')
-	def fetchPosts(self, user_id: int, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
+	def fetchPosts(self, user: KhUser, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
 		posts = self._fetch_posts(sort, tuple(tags) if tags else None, count, page)
-		blocked_tags = self.user_blocked_tags(user_id)
+		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return {
 			'posts': [
@@ -240,7 +241,7 @@ class Posts(UserBlocking) :
 	@ArgsCache(60)
 	def _get_post(self, post_id: str) :
 		data = self.query("""
-			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id, posts.media_type_id
+			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id, posts.media_type_id, users.user_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -273,36 +274,39 @@ class Posts(UserBlocking) :
 				'name': data[0][4],
 			},
 			'tags': {
-				row[7]: row[8]
+				row[7]: sorted(row[8])
 				for row in data
 			},
 			'tags_flattened': set(flatten(row[8] for row in data)),
 			'privacy': self._get_privacy_map()[data[0][9]],
 			'media_type': self._get_media_type_map()[data[0][10]],
+			'user_id': data[0][11],
 		}
 
 
 	@HttpErrorHandler('retrieving post')
-	def getPost(self, user_id: int, post_id: str) :
+	def getPost(self, user: KhUser, post_id: str) :
 		self._validatePostId(post_id)
 
 		post = self._get_post(post_id)
-		blocked_tags = self.user_blocked_tags(user_id)
+		blocked_tags = self.user_blocked_tags(user.user_id)
+		uploader = post.pop('user_id')
 
 		if post.pop('tags_flattened') & blocked_tags :
 			raise NotFound('no data was found for the provided post id.')
 
-		if post['privacy'] not in { 'public', 'unlisted' } :
-			raise NotFound('no data was found for the provided post id.')
+		if post['privacy'] in { 'public', 'unlisted' } :
+			return { post_id: post }
 
-		return {
-			post_id: post,
-		}
+		if uploader == user.user_id and user.authenticated(raise_error=False) :
+			return { post_id: post }
+
+		raise NotFound('no data was found for the provided post id.')
 
 
 	@HttpErrorHandler('retrieving user posts')
 	@ArgsCache(60)
-	def fetchUserPosts(self, user_id: int, sort: PostSort, count: int, page: int) :
+	def fetchUserPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
 			SELECT posts.post_id, posts.title, posts.description, privacy.type
 			FROM kheina.public.posts
@@ -315,7 +319,7 @@ class Posts(UserBlocking) :
 			LIMIT %s
 			OFFSET %s;
 			""",
-			(user_id, count, count * (page - 1)),
+			(user.user_id, count, count * (page - 1)),
 			fetch_all=True,
 		)
 

@@ -18,21 +18,21 @@ async def v1Vote(req: Request, body: VoteRequest) :
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
 
 	return UJSONResponse(
-		posts.vote(req.user.user_id, body.post_id, vote)
+		posts.vote(req.user, body.post_id, vote)
 	)
 
 
 @app.post('/v1/fetch_posts')
 async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
 	return UJSONResponse(
-		posts.fetchPosts(req.user.user_id, body.sort, body.tags, body.count, body.page)
+		posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
 	)
 
 
 @app.get('/v1/post/{post_id}')
 async def v1GetPost(req: Request, post_id: str) :
 	return UJSONResponse(
-		posts.getPost(req.user.user_id, post_id)
+		posts.getPost(req.user, post_id)
 	)
 
 
@@ -40,7 +40,7 @@ async def v1GetPost(req: Request, post_id: str) :
 async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
 	req.user.authenticated()
 	return UJSONResponse(
-		posts.fetchUserPosts(req.user.user_id, body.sort, body.count, body.page)
+		posts.fetchUserPosts(req.user, body.sort, body.count, body.page)
 	)
 
 
