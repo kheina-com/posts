@@ -276,6 +276,7 @@ class Posts(UserBlocking) :
 			'tags': {
 				row[7]: sorted(row[8])
 				for row in data
+				if row[7]
 			},
 			'tags_flattened': set(flatten(row[8] for row in data)),
 			'privacy': self._get_privacy_map()[data[0][9]],
