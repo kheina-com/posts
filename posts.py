@@ -155,7 +155,7 @@ class Posts(UserBlocking) :
 
 		else :
 			data = self.query(f"""
-				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(tags.tag), post_scores.upvotes
+				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(tags.tag), post_scores.upvotes, post_scores.downvotes
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -187,7 +187,10 @@ class Posts(UserBlocking) :
 					'name': row[4],
 				},
 				'tags': set(row[5]),
-				'score': row[6],
+				'score': {
+					'up': row[6],
+					'down': row[7],
+				},
 			}
 			for row in data
 		]
@@ -241,12 +244,14 @@ class Posts(UserBlocking) :
 	@ArgsCache(60)
 	def _get_post(self, post_id: str) :
 		data = self.query("""
-			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id, posts.media_type_id, users.user_id
+			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id, posts.media_type_id, users.user_id, post_scores.upvotes, post_scores.downvotes
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
 				LEFT JOIN (
 					kheina.public.tag_post
+						INNER JOIN kheina.public.post_scores
+							ON post_scores.post_id = posts.post_id
 						INNER JOIN kheina.public.tags
 							ON tags.tag_id = tag_post.tag_id
 								AND tags.deprecated = false
@@ -282,6 +287,10 @@ class Posts(UserBlocking) :
 			'privacy': self._get_privacy_map()[data[0][9]],
 			'media_type': self._get_media_type_map()[data[0][10]],
 			'user_id': data[0][11],
+			'score': {
+				'up': data[0][12],
+				'down': data[0][13],
+			},
 		}
 
 
