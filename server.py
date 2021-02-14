@@ -6,6 +6,9 @@ from posts import Posts
 app = ServerApp(auth_required=False)
 posts = Posts()
 
+from kh_common.logging import getLogger
+from kh_common.utilities.json import json_stream
+logger = getLogger()
 
 @app.on_event('shutdown')
 async def shutdown() :
@@ -14,6 +17,7 @@ async def shutdown() :
 
 @app.post('/v1/vote')
 async def v1Vote(req: Request, body: VoteRequest) :
+	logger.info(json_stream(req.user))
 	req.user.authenticated()
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
 
