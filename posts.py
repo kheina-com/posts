@@ -248,10 +248,10 @@ class Posts(UserBlocking) :
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
+				INNER JOIN kheina.public.post_scores
+					ON post_scores.post_id = posts.post_id
 				LEFT JOIN (
 					kheina.public.tag_post
-						INNER JOIN kheina.public.post_scores
-							ON post_scores.post_id = posts.post_id
 						INNER JOIN kheina.public.tags
 							ON tags.tag_id = tag_post.tag_id
 								AND tags.deprecated = false
