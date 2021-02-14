@@ -259,7 +259,7 @@ class Posts(UserBlocking) :
 							ON tag_classes.class_id = tags.class_id
 					) ON tag_post.post_id = posts.post_id
 			WHERE posts.post_id = %s
-			GROUP BY posts.post_id, users.user_id, tag_classes.class_id;
+			GROUP BY posts.post_id, users.user_id, tag_classes.class_id, post_scores.post_id;
 			""",
 			(post_id,),
 			fetch_all=True,
