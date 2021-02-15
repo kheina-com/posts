@@ -125,7 +125,7 @@ class Posts(UserBlocking) :
 		offset: int = count * (page - 1)
 		if tags :
 			data = self.query(f"""
-				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(t2.tag), post_scores.upvotes
+				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(t2.tag), post_scores.upvotes, post_scores.downvotes
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
