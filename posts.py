@@ -23,7 +23,7 @@ class Posts(UserBlocking) :
 
 	def _validatePostId(self, post_id: str) :
 		if len(post_id) != 8 :
-			raise BadRequest('the given post id is invalid.', logdata={ 'post_id': post_id })
+			raise BadRequest('the given post id is invalid.', post_id=post_id)
 
 
 	def _validateVote(self, vote: Union[bool, type(None)]) :
@@ -33,12 +33,12 @@ class Posts(UserBlocking) :
 
 	def _validatePageNumber(self, page_number: int) :
 		if page_number < 1 :
-			raise BadRequest('the given page number is invalid.', logdata={ 'page_number': page_number })
+			raise BadRequest('the given page number is invalid.', page_number=page_number)
 
 
 	def _validateCount(self, count: int) :
 		if count < 1 :
-			raise BadRequest('the given count is invalid.', logdata={ 'count': count })
+			raise BadRequest('the given count is invalid.', count=count)
 
 
 	@HttpErrorHandler('processing vote')
@@ -244,7 +244,21 @@ class Posts(UserBlocking) :
 	@ArgsCache(60)
 	def _get_post(self, post_id: str) :
 		data = self.query("""
-			SELECT posts.title, posts.description, posts.filename, users.handle, users.display_name, posts.created_on, posts.updated_on, tag_classes.class, array_agg(tags.tag), posts.privacy_id, posts.media_type_id, users.user_id, post_scores.upvotes, post_scores.downvotes
+			SELECT
+				posts.title,
+				posts.description,
+				posts.filename,
+				users.handle,
+				users.display_name,
+				posts.created_on,
+				posts.updated_on,
+				tag_classes.class,
+				array_agg(tags.tag),
+				posts.privacy_id,
+				posts.media_type_id,
+				users.user_id,
+				post_scores.upvotes,
+				post_scores.downvotes
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -272,8 +286,8 @@ class Posts(UserBlocking) :
 			'title': data[0][0],
 			'description': data[0][1],
 			'filename': data[0][2],
-			'created': data[0][5].timestamp(),
-			'updated': data[0][6].timestamp(),
+			'created': str(data[0][5]),
+			'updated': str(data[0][6]),
 			'user': {
 				'handle': data[0][3],
 				'name': data[0][4],
@@ -283,7 +297,6 @@ class Posts(UserBlocking) :
 				for row in data
 				if row[7]
 			},
-			'tags_flattened': set(flatten(row[8] for row in data)),
 			'privacy': self._get_privacy_map()[data[0][9]],
 			'media_type': self._get_media_type_map()[data[0][10]],
 			'user_id': data[0][11],
@@ -301,15 +314,10 @@ class Posts(UserBlocking) :
 		post = self._get_post(post_id)
 		blocked_tags = self.user_blocked_tags(user.user_id)
 		uploader = post.pop('user_id')
+		post['user_is_uploader'] = uploader == user.user_id and user.authenticated(raise_error=False)
 
-		if post.pop('tags_flattened') & blocked_tags :
-			raise NotFound('no data was found for the provided post id.')
-
-		if post['privacy'] in { 'public', 'unlisted' } :
-			return { post_id: post }
-
-		if uploader == user.user_id and user.authenticated(raise_error=False) :
-			return { post_id: post }
+		if post['privacy'] in { 'public', 'unlisted' } or post['user_is_uploader'] :
+			return post
 
 		raise NotFound('no data was found for the provided post id.')
 
