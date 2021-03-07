@@ -6,10 +6,10 @@ from kh_common.blocking import UserBlocking
 from kh_common.utilities import flatten
 from kh_common.caching import ArgsCache
 from kh_common.logging import getLogger
+from collections import defaultdict
 from kh_common.auth import KhUser
 from models import PostSort
 from uuid import uuid4
-
 
 class Posts(UserBlocking) :
 
@@ -235,10 +235,10 @@ class Posts(UserBlocking) :
 			""",
 			fetch_all=True,
 		)
-		return {
+		return defaultdict(lambda : None, {
 			row[0]: { 'file_type': row[1], 'mime_type': row[2] }
 			for row in data
-		}
+		})
 
 
 	@ArgsCache(60)
