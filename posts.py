@@ -262,7 +262,7 @@ class Posts(UserBlocking) :
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
-				INNER JOIN kheina.public.post_scores
+				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id
 				LEFT JOIN (
 					kheina.public.tag_post
@@ -328,9 +328,9 @@ class Posts(UserBlocking) :
 		data = self.query(f"""
 			SELECT posts.post_id, posts.title, posts.description, privacy.type
 			FROM kheina.public.posts
-				INNER JOIN kheina.public.post_scores
+				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id
-				INNER JOIN kheina.public.privacy
+				LEFT JOIN kheina.public.privacy
 					ON privacy.privacy_id = posts.privacy_id
 			WHERE posts.uploader = %s
 			ORDER BY post_scores.{sort.name} DESC NULLS LAST
