@@ -1,15 +1,12 @@
 from kh_common.exceptions.http_error import BadRequest, Forbidden, HttpErrorHandler, NotFound
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
 from typing import Any, Dict, List, Tuple, Union
-from kh_common.utilities.json import json_stream
 from kh_common.blocking import UserBlocking
-from kh_common.utilities import flatten
 from kh_common.caching import ArgsCache
-from kh_common.logging import getLogger
 from collections import defaultdict
 from kh_common.auth import KhUser
 from models import PostSort
-from uuid import uuid4
+
 
 class Posts(UserBlocking) :
 
@@ -125,7 +122,16 @@ class Posts(UserBlocking) :
 		offset: int = count * (page - 1)
 		if tags :
 			data = self.query(f"""
-				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(t2.tag), post_scores.upvotes, post_scores.downvotes
+				SELECT
+					posts.post_id,
+					posts.title,
+					posts.description,
+					users.handle,
+					users.display_name,
+					array_agg(t2.tag),
+					post_scores.upvotes,
+					post_scores.downvotes,
+					users.icon
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
@@ -155,7 +161,16 @@ class Posts(UserBlocking) :
 
 		else :
 			data = self.query(f"""
-				SELECT posts.post_id, posts.title, posts.description, users.handle, users.display_name, array_agg(tags.tag), post_scores.upvotes, post_scores.downvotes
+				SELECT
+					posts.post_id,
+					posts.title,
+					posts.description,
+					users.handle,
+					users.display_name,
+					array_agg(tags.tag),
+					post_scores.upvotes,
+					post_scores.downvotes,
+					users.icon
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -185,6 +200,7 @@ class Posts(UserBlocking) :
 				'user': {
 					'handle': row[3],
 					'name': row[4],
+					'icon': row[8],
 				},
 				'tags': set(row[5]),
 				'score': {
@@ -258,7 +274,8 @@ class Posts(UserBlocking) :
 				posts.media_type_id,
 				users.user_id,
 				post_scores.upvotes,
-				post_scores.downvotes
+				post_scores.downvotes,
+				users.icon
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -291,6 +308,7 @@ class Posts(UserBlocking) :
 			'user': {
 				'handle': data[0][3],
 				'name': data[0][4],
+				'icon': data[0][14],
 			},
 			'tags': {
 				row[7]: sorted(row[8])
