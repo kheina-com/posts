@@ -118,7 +118,7 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(60)
-	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int, logged_in: bool = False) :
+	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int, logged_in: bool) :
 		offset: int = count * (page - 1)
 		if tags :
 			data = self.query(f"""
@@ -221,7 +221,7 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = self._fetch_posts(sort, tuple(tags) if tags else None, count, page)
+		posts = self._fetch_posts(sort, tuple(tags) if tags else None, count, page, user.authenticated(raise_error=False))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return {
