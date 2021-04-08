@@ -185,7 +185,7 @@ class Posts(UserBlocking) :
 									AND tags.deprecated = false
 						) ON tag_post.post_id = posts.post_id
 				WHERE posts.privacy_id = privacy_to_id('public')
-				{'' if logged_in else "AND posts.rating == rating_to_id('general')"}
+				{"AND posts.rating = rating_to_id('general')" if logged_in else ''}
 				GROUP BY posts.post_id, post_scores.post_id, users.user_id
 				ORDER BY post_scores.{sort.name} DESC NULLS LAST
 				LIMIT %s
