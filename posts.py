@@ -118,7 +118,7 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(60)
-	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
+	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int, logged_in: bool = False) :
 		offset: int = count * (page - 1)
 		if tags :
 			data = self.query(f"""
@@ -131,7 +131,8 @@ class Posts(UserBlocking) :
 					array_agg(t2.tag),
 					post_scores.upvotes,
 					post_scores.downvotes,
-					users.icon
+					users.icon,
+					posts.rating
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
@@ -170,7 +171,8 @@ class Posts(UserBlocking) :
 					array_agg(tags.tag),
 					post_scores.upvotes,
 					post_scores.downvotes,
-					users.icon
+					users.icon,
+					posts.rating
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -183,6 +185,7 @@ class Posts(UserBlocking) :
 									AND tags.deprecated = false
 						) ON tag_post.post_id = posts.post_id
 				WHERE posts.privacy_id = privacy_to_id('public')
+				{'' if logged_in else "AND posts.rating == rating_to_id('general')"}
 				GROUP BY posts.post_id, post_scores.post_id, users.user_id
 				ORDER BY post_scores.{sort.name} DESC NULLS LAST
 				LIMIT %s
@@ -207,6 +210,7 @@ class Posts(UserBlocking) :
 					'up': row[6],
 					'down': row[7],
 				},
+				'rating': self._get_rating_map(row[9]),
 			}
 			for row in data
 		]
@@ -230,6 +234,17 @@ class Posts(UserBlocking) :
 				if not post['tags'] & blocked_tags
 			],
 		}
+
+
+	@ArgsCache(600)
+	def _get_rating_map(self) :
+		data = self.query("""
+			SELECT rating_id, rating
+			FROM kheina.public.ratings;
+			""",
+			fetch_all=True,
+		)
+		return dict(data)
 
 
 	@ArgsCache(600)
@@ -275,7 +290,8 @@ class Posts(UserBlocking) :
 				users.user_id,
 				post_scores.upvotes,
 				post_scores.downvotes,
-				users.icon
+				users.icon,
+				posts.rating
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -322,6 +338,7 @@ class Posts(UserBlocking) :
 				'up': data[0][12],
 				'down': data[0][13],
 			},
+			'rating': self._get_rating_map(data[0][15]),
 		}
 
 
