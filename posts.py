@@ -185,7 +185,7 @@ class Posts(UserBlocking) :
 									AND tags.deprecated = false
 						) ON tag_post.post_id = posts.post_id
 				WHERE posts.privacy_id = privacy_to_id('public')
-				{"AND posts.rating = rating_to_id('general')" if logged_in else ''}
+				{'' if logged_in else "AND posts.rating = rating_to_id('general')"}
 				GROUP BY posts.post_id, post_scores.post_id, users.user_id
 				ORDER BY post_scores.{sort.name} DESC NULLS LAST
 				LIMIT %s
@@ -210,7 +210,7 @@ class Posts(UserBlocking) :
 					'up': row[6],
 					'down': row[7],
 				},
-				'rating': self._get_rating_map(row[9]),
+				'rating': self._get_rating_map()[row[9]],
 			}
 			for row in data
 		]
@@ -338,7 +338,7 @@ class Posts(UserBlocking) :
 				'up': data[0][12],
 				'down': data[0][13],
 			},
-			'rating': self._get_rating_map(data[0][15]),
+			'rating': self._get_rating_map()[data[0][15]],
 		}
 
 
