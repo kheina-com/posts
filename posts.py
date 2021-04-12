@@ -221,7 +221,7 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = self._fetch_posts(sort, tuple(tags) if tags else None, count, page, user.authenticated(raise_error=False))
+		posts = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page, user.authenticated(raise_error=False))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return {
