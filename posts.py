@@ -132,7 +132,8 @@ class Posts(UserBlocking) :
 					post_scores.upvotes,
 					post_scores.downvotes,
 					users.icon,
-					posts.rating
+					posts.rating,
+					posts.parent
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
@@ -172,7 +173,8 @@ class Posts(UserBlocking) :
 					post_scores.upvotes,
 					post_scores.downvotes,
 					users.icon,
-					posts.rating
+					posts.rating,
+					posts.parent
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -211,6 +213,7 @@ class Posts(UserBlocking) :
 					'down': row[7],
 				},
 				'rating': self._get_rating_map()[row[9]],
+				'parent': row[10],
 			}
 			for row in data
 		]
@@ -291,7 +294,8 @@ class Posts(UserBlocking) :
 				post_scores.upvotes,
 				post_scores.downvotes,
 				users.icon,
-				posts.rating
+				posts.rating,
+				posts.parent
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -339,6 +343,7 @@ class Posts(UserBlocking) :
 				'down': data[0][13],
 			},
 			'rating': self._get_rating_map()[data[0][15]],
+			'parent': data[0][16],
 		}
 
 
