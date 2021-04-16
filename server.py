@@ -25,7 +25,7 @@ async def v1Vote(req: Request, body: VoteRequest) :
 @app.post('/v1/fetch_posts')
 async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
 	return UJSONResponse(
-		posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
+		await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
 	)
 
 

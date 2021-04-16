@@ -6,6 +6,10 @@ from kh_common.caching import ArgsCache
 from collections import defaultdict
 from kh_common.auth import KhUser
 from models import PostSort
+from tags import Tags
+
+
+tags = Tags()
 
 
 class Posts(UserBlocking) :
@@ -118,7 +122,7 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(60)
-	def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int, logged_in: bool) :
+	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int, logged_in: bool) :
 		offset: int = count * (page - 1)
 		if tags :
 			data = self.query(f"""
@@ -128,7 +132,6 @@ class Posts(UserBlocking) :
 					posts.description,
 					users.handle,
 					users.display_name,
-					array_agg(t2.tag),
 					post_scores.upvotes,
 					post_scores.downvotes,
 					users.icon,
@@ -144,11 +147,6 @@ class Posts(UserBlocking) :
 						ON post_scores.post_id = tag_post.post_id
 					INNER JOIN kheina.public.users
 						ON posts.uploader = users.user_id
-					INNER JOIN kheina.public.tag_post AS tp2
-						ON tp2.post_id = posts.post_id
-					INNER JOIN kheina.public.tags AS t2
-						ON t2.tag_id = tp2.tag_id
-							AND tags.deprecated = false
 				WHERE tags.tag = any(%s)
 					AND tags.deprecated = false
 				GROUP BY posts.post_id, post_scores.post_id, users.user_id
@@ -169,7 +167,6 @@ class Posts(UserBlocking) :
 					posts.description,
 					users.handle,
 					users.display_name,
-					array_agg(tags.tag),
 					post_scores.upvotes,
 					post_scores.downvotes,
 					users.icon,
@@ -180,12 +177,6 @@ class Posts(UserBlocking) :
 						ON post_scores.post_id = posts.post_id
 					INNER JOIN kheina.public.users
 						ON users.user_id = posts.uploader
-					LEFT JOIN (
-						kheina.public.tag_post
-							INNER JOIN kheina.public.tags
-								ON tags.tag_id = tag_post.tag_id
-									AND tags.deprecated = false
-						) ON tag_post.post_id = posts.post_id
 				WHERE posts.privacy_id = privacy_to_id('public')
 				{'' if logged_in else "AND posts.rating = rating_to_id('general')"}
 				GROUP BY posts.post_id, post_scores.post_id, users.user_id
@@ -207,7 +198,7 @@ class Posts(UserBlocking) :
 					'name': row[4],
 					'icon': row[8],
 				},
-				'tags': set(row[5]),
+				'tags': await tags.postTags(row[0]),
 				'score': {
 					'up': row[6],
 					'down': row[7],
@@ -220,7 +211,7 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('fetching posts')
-	def fetchPosts(self, user: KhUser, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
+	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
@@ -286,8 +277,6 @@ class Posts(UserBlocking) :
 				users.display_name,
 				posts.created_on,
 				posts.updated_on,
-				tag_classes.class,
-				array_agg(tags.tag),
 				posts.privacy_id,
 				posts.media_type_id,
 				users.user_id,
@@ -301,16 +290,7 @@ class Posts(UserBlocking) :
 					ON posts.uploader = users.user_id
 				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id
-				LEFT JOIN (
-					kheina.public.tag_post
-						INNER JOIN kheina.public.tags
-							ON tags.tag_id = tag_post.tag_id
-								AND tags.deprecated = false
-						INNER JOIN kheina.public.tag_classes
-							ON tag_classes.class_id = tags.class_id
-					) ON tag_post.post_id = posts.post_id
 			WHERE posts.post_id = %s
-			GROUP BY posts.post_id, users.user_id, tag_classes.class_id, post_scores.post_id;
 			""",
 			(post_id,),
 			fetch_all=True,
@@ -328,22 +308,17 @@ class Posts(UserBlocking) :
 			'user': {
 				'handle': data[0][3],
 				'name': data[0][4],
-				'icon': data[0][14],
+				'icon': data[0][12],
 			},
-			'tags': {
-				row[7]: sorted(row[8])
-				for row in data
-				if row[7]
-			},
-			'privacy': self._get_privacy_map()[data[0][9]],
-			'media_type': self._get_media_type_map()[data[0][10]],
-			'user_id': data[0][11],
+			'privacy': self._get_privacy_map()[data[0][7]],
+			'media_type': self._get_media_type_map()[data[0][8]],
+			'user_id': data[0][9],
 			'score': {
-				'up': data[0][12],
-				'down': data[0][13],
+				'up': data[0][10],
+				'down': data[0][11],
 			},
-			'rating': self._get_rating_map()[data[0][15]],
-			'parent': data[0][16],
+			'rating': self._get_rating_map()[data[0][13]],
+			'parent': data[0][14],
 		}
 
 
@@ -352,7 +327,6 @@ class Posts(UserBlocking) :
 		self._validatePostId(post_id)
 
 		post = self._get_post(post_id)
-		blocked_tags = self.user_blocked_tags(user.user_id)
 		uploader = post.pop('user_id')
 		post['user_is_uploader'] = uploader == user.user_id and user.authenticated(raise_error=False)
 
