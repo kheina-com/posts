@@ -9,7 +9,7 @@ from models import PostSort
 from tags import Tags
 
 
-tags = Tags()
+tagService = Tags()
 
 
 class Posts(UserBlocking) :
@@ -196,15 +196,15 @@ class Posts(UserBlocking) :
 				'user': {
 					'handle': row[3],
 					'name': row[4],
-					'icon': row[8],
+					'icon': row[7],
 				},
-				'tags': await tags.postTags(row[0]),
+				'tags': await tagService.postTags(row[0]),
 				'score': {
-					'up': row[6],
-					'down': row[7],
+					'up': row[5],
+					'down': row[6],
 				},
-				'rating': self._get_rating_map()[row[9]],
-				'parent': row[10],
+				'rating': self._get_rating_map()[row[8]],
+				'parent': row[9],
 			}
 			for row in data
 		]
@@ -224,7 +224,7 @@ class Posts(UserBlocking) :
 					**post,
 					'tags': list(post['tags']),
 				}
-				for post in posts
+				for post in await posts
 				if not post['tags'] & blocked_tags
 			],
 		}
