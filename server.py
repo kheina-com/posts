@@ -37,9 +37,9 @@ async def v1GetPost(req: Request, post_id: str) :
 
 
 @app.post('/v1/fetch_user_posts')
-async def v1FetchUserPosts(body: GetUserPostsRequest) :
+async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) :
 	return UJSONResponse(
-		await posts.fetchUserPosts(body.user, body.count, body.page)
+		await posts.fetchUserPosts(req.user, body.handle, body.count, body.page)
 	)
 
 

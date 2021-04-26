@@ -222,6 +222,7 @@ class Posts(UserBlocking) :
 			'posts': [
 				{
 					**post,
+					'blocked': post['tags'] & blocked_tags,
 					'tags': list(post['tags']),
 				}
 				for post in await posts
@@ -393,8 +394,23 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('retrieving user posts')
-	async def fetchUserPosts(self, handle: str, count: int, page: int) :
-		return await self._fetch_user_posts(handle, count, page)
+	async def fetchUserPosts(self, user: KhUser, handle: str, count: int, page: int) :
+		self._validatePageNumber(page)
+		self._validateCount(count)
+
+		posts = self._fetch_user_posts(handle, count, page)
+		blocked_tags = self.user_blocked_tags(user.user_id)
+
+		return {
+			'posts': [
+				{
+					**post,
+					'blocked': post['tags'] & blocked_tags,
+					'tags': list(post['tags']),
+				}
+				for post in await posts
+			],
+		}		
 
 
 	@HttpErrorHandler("retrieving user's own posts")

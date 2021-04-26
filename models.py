@@ -29,6 +29,6 @@ class FetchPostsRequest(BaseFetchRequest) :
 
 
 class GetUserPostsRequest(BaseModel) :
-	user: str
+	handle: str
 	count: Optional[int] = 64
 	page: Optional[int] = 1
