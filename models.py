@@ -28,5 +28,7 @@ class FetchPostsRequest(BaseFetchRequest) :
 	tags: Optional[List[str]]
 
 
-class GetPostRequest(BaseModel) :
-	post_id: str
+class GetUserPostsRequest(BaseModel) :
+	user: str
+	count: Optional[int] = 64
+	page: Optional[int] = 1

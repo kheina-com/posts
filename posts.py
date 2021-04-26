@@ -338,7 +338,34 @@ class Posts(UserBlocking) :
 
 	@HttpErrorHandler('retrieving user posts')
 	@ArgsCache(60)
-	def fetchUserPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
+	def fetchUserPosts(self, handle, count: int, page: int) :
+		data = self.query(f"""
+			SELECT posts.post_id, posts.title, posts.description, privacy.type
+			FROM kheina.public.users
+				INNER JOIN kheina.public.tags
+					ON tags.owner = users.user_id
+				INNER JOIN kheina.public.tag_post
+					ON tag_post.tag_id = tags.tag_id
+				INNER JOIN kheina.public.posts
+					ON posts.post_id = tag_post.post_id
+			WHERE users.handle = 'darius'
+			ORDER BY posts.created_on DESC
+			LIMIT %s
+			OFFSET %s;
+			""",
+			(user.user_id, count, count * (page - 1)),
+			fetch_all=True,
+		)
+
+		return [
+			dict(zip(Posts.user_post_keys, row))
+			for row in data
+		]
+
+
+	@HttpErrorHandler("retrieving user's own posts")
+	@ArgsCache(60)
+	def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
 			SELECT posts.post_id, posts.title, posts.description, privacy.type
 			FROM kheina.public.posts
