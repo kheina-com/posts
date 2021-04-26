@@ -336,31 +336,65 @@ class Posts(UserBlocking) :
 		raise NotFound('no data was found for the provided post id.')
 
 
-	@HttpErrorHandler('retrieving user posts')
 	@ArgsCache(60)
-	def fetchUserPosts(self, handle, count: int, page: int) :
+	async def _fetch_user_posts(self, handle: str, count: int, page: int) :
 		data = self.query(f"""
-			SELECT posts.post_id, posts.title, posts.description, privacy.type
-			FROM kheina.public.users
+			SELECT
+				posts.post_id,
+				posts.title,
+				posts.description,
+				u2.handle,
+				u2.display_name,
+				u2.icon,
+				post_scores.upvotes,
+				post_scores.downvotes,
+				posts.rating,
+				posts.parent
+			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
-					ON tags.owner = users.user_id
+					ON tags.owner = u.user_id
 				INNER JOIN kheina.public.tag_post
 					ON tag_post.tag_id = tags.tag_id
 				INNER JOIN kheina.public.posts
 					ON posts.post_id = tag_post.post_id
-			WHERE users.handle = 'darius'
+				INNER JOIN kheina.public.post_scores
+					ON post_scores.post_id = posts.post_id
+				INNER JOIN kheina.public.users u2
+					ON posts.uploader = u2.user_id
+			WHERE u.handle = %s
 			ORDER BY posts.created_on DESC
 			LIMIT %s
 			OFFSET %s;
 			""",
-			(user.user_id, count, count * (page - 1)),
+			(handle, count, count * (page - 1)),
 			fetch_all=True,
 		)
 
 		return [
-			dict(zip(Posts.user_post_keys, row))
+			{
+				'post_id': row[0],
+				'title': row[1],
+				'description': row[2],
+				'user': {
+					'handle': row[3],
+					'name': row[4],
+					'icon': row[5],
+				},
+				'tags': await tagService.postTags(row[0]),
+				'score': {
+					'up': row[6],
+					'down': row[7],
+				},
+				'rating': self._get_rating_map()[row[8]],
+				'parent': row[9],
+			}
 			for row in data
 		]
+
+
+	@HttpErrorHandler('retrieving user posts')
+	async def fetchUserPosts(self, handle: str, count: int, page: int) :
+		return await self._fetch_user_posts(handle, count, page)
 
 
 	@HttpErrorHandler("retrieving user's own posts")
