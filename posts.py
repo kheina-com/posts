@@ -222,7 +222,7 @@ class Posts(UserBlocking) :
 			'posts': [
 				{
 					**post,
-					'blocked': post['tags'] & blocked_tags,
+					'blocked': bool(post['tags'] & blocked_tags),
 					'tags': list(post['tags']),
 				}
 				for post in await posts
@@ -405,7 +405,7 @@ class Posts(UserBlocking) :
 			'posts': [
 				{
 					**post,
-					'blocked': post['tags'] & blocked_tags,
+					'blocked': bool(post['tags'] & blocked_tags),
 					'tags': list(post['tags']),
 				}
 				for post in await posts
