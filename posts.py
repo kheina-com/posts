@@ -363,6 +363,7 @@ class Posts(UserBlocking) :
 				INNER JOIN kheina.public.users u2
 					ON posts.uploader = u2.user_id
 			WHERE u.handle = %s
+				AND posts.privacy_id = privacy_to_id('public')
 			ORDER BY posts.created_on DESC
 			LIMIT %s
 			OFFSET %s;
