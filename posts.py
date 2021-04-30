@@ -161,7 +161,7 @@ class Posts(UserBlocking) :
 
 		else :
 			data = self.query(f"""
-				SELECT
+				SELECT DISTINCT
 					posts.post_id,
 					posts.title,
 					posts.description,
@@ -171,7 +171,8 @@ class Posts(UserBlocking) :
 					post_scores.downvotes,
 					users.icon,
 					posts.rating,
-					posts.parent
+					posts.parent,
+					posts.created_on
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -330,6 +331,9 @@ class Posts(UserBlocking) :
 		post = self._get_post(post_id)
 		uploader = post.pop('user_id')
 		post['user_is_uploader'] = uploader == user.user_id and user.authenticated(raise_error=False)
+
+		if post['privacy'] == 'unpublished' :
+			post['created'] = post['updated'] = None
 
 		if post['privacy'] in { 'public', 'unlisted' } or post['user_is_uploader'] :
 			return post
