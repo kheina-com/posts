@@ -161,7 +161,7 @@ class Posts(UserBlocking) :
 
 		else :
 			data = self.query(f"""
-				SELECT DISTINCT
+				SELECT
 					posts.post_id,
 					posts.title,
 					posts.description,
@@ -171,8 +171,7 @@ class Posts(UserBlocking) :
 					post_scores.downvotes,
 					users.icon,
 					posts.rating,
-					posts.parent,
-					posts.created_on
+					posts.parent
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -344,7 +343,7 @@ class Posts(UserBlocking) :
 	@ArgsCache(60)
 	async def _fetch_user_posts(self, handle: str, count: int, page: int) :
 		data = self.query(f"""
-			SELECT
+			SELECT DISTINCT
 				posts.post_id,
 				posts.title,
 				posts.description,
@@ -354,7 +353,8 @@ class Posts(UserBlocking) :
 				post_scores.upvotes,
 				post_scores.downvotes,
 				posts.rating,
-				posts.parent
+				posts.parent,
+				posts.created_on
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
