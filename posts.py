@@ -400,7 +400,7 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('retrieving comments')
-	async def getComments(self, user: KhUser, post_id: str, sort: PostSort, count: int, page: int) :
+	async def fetchComments(self, user: KhUser, post_id: str, sort: PostSort, count: int, page: int) :
 		self._validatePostId(post_id)
 		self._validatePageNumber(page)
 		self._validateCount(count)
