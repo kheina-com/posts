@@ -32,7 +32,7 @@ async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
 @app.post('/v1/fetch_comments')
 async def v1FetchPosts(req: Request, body: FetchCommentsRequest) :
 	return UJSONResponse(
-		await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
+		await posts.fetchComments(req.user, body.post_id, body.sort, body.count, body.page)
 	)
 
 

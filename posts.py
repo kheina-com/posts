@@ -363,6 +363,7 @@ class Posts(UserBlocking) :
 				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id
 			WHERE posts.parent = %s
+				AND posts.privacy_id = privacy_to_id('public')
 			ORDER BY post_scores.{sort.name} DESC NULLS LAST
 			LIMIT %s
 			OFFSET %s;
@@ -400,6 +401,10 @@ class Posts(UserBlocking) :
 
 	@HttpErrorHandler('retrieving comments')
 	async def getComments(self, user: KhUser, post_id: str, sort: PostSort, count: int, page: int) :
+		self._validatePostId(post_id)
+		self._validatePageNumber(page)
+		self._validateCount(count)
+
 		posts = ensure_future(self._getComments(post_id, sort, count, page))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
