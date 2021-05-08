@@ -1,4 +1,4 @@
-from models import BaseFetchRequest, FetchPostsRequest, GetUserPostsRequest, VoteRequest
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, VoteRequest
 from kh_common.server import Request, ServerApp, UJSONResponse
 from posts import Posts
 
@@ -24,6 +24,13 @@ async def v1Vote(req: Request, body: VoteRequest) :
 
 @app.post('/v1/fetch_posts')
 async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
+	return UJSONResponse(
+		await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
+	)
+
+
+@app.post('/v1/fetch_comments')
+async def v1FetchPosts(req: Request, body: FetchCommentsRequest) :
 	return UJSONResponse(
 		await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
 	)

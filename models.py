@@ -28,6 +28,10 @@ class FetchPostsRequest(BaseFetchRequest) :
 	tags: Optional[List[str]]
 
 
+class FetchCommentsRequest(BaseFetchRequest) :
+	post_id: str
+
+
 class GetUserPostsRequest(BaseModel) :
 	handle: str
 	count: Optional[int] = 64

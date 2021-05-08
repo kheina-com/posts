@@ -5,6 +5,7 @@ from kh_common.blocking import UserBlocking
 from kh_common.caching import ArgsCache
 from collections import defaultdict
 from kh_common.auth import KhUser
+from asyncio import ensure_future
 from models import PostSort
 from tags import Tags
 
@@ -215,7 +216,7 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page, user.authenticated(raise_error=False))
+		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page, user.authenticated(raise_error=False)))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return {
@@ -329,15 +330,87 @@ class Posts(UserBlocking) :
 
 		post = self._get_post(post_id)
 		uploader = post.pop('user_id')
-		post['user_is_uploader'] = uploader == user.user_id and user.authenticated(raise_error=False)
 
 		if post['privacy'] == 'unpublished' :
 			post['created'] = post['updated'] = None
 
-		if post['privacy'] in { 'public', 'unlisted' } or post['user_is_uploader'] :
+		user_is_uploader = uploader == user.user_id and user.authenticated(raise_error=False)
+
+		if post['privacy'] in { 'public', 'unlisted' } or user_is_uploader :
 			return post
 
 		raise NotFound('no data was found for the provided post id.')
+
+
+	@ArgsCache(60)
+	async def _getComments(self, post_id: str, sort: PostSort, count: int, page: int) :
+		data = self.query(f"""
+			SELECT
+				posts.post_id,
+				posts.title,
+				posts.description,
+				users.handle,
+				users.display_name,
+				users.icon,
+				post_scores.upvotes,
+				post_scores.downvotes,
+				posts.rating,
+				posts.created_on,
+				posts.updated_on
+			FROM kheina.public.posts
+				INNER JOIN kheina.public.users
+					ON posts.uploader = users.user_id
+				LEFT JOIN kheina.public.post_scores
+					ON post_scores.post_id = posts.post_id
+			WHERE posts.parent = %s
+			ORDER BY post_scores.{sort.name} DESC NULLS LAST
+			LIMIT %s
+			OFFSET %s;
+			""",
+			(
+				post_id,
+				count,
+				count * (page - 1),
+			),
+			fetch_all=True,
+		)
+
+		return [
+			{
+				'post_id': row[0],
+				'title': row[1],
+				'description': row[2],
+				'user': {
+					'handle': row[3],
+					'name': row[4],
+					'icon': row[5],
+				},
+				'tags': await tagService.postTags(row[0]),
+				'score': {
+					'up': row[6],
+					'down': row[7],
+				},
+				'rating': self._get_rating_map()[row[8]],
+				'created': str(row[9]),
+				'updated': str(row[10]),
+			}
+			for row in data
+		]
+
+
+	@HttpErrorHandler('retrieving comments')
+	async def getComments(self, user: KhUser, post_id: str, sort: PostSort, count: int, page: int) :
+		posts = ensure_future(self._getComments(post_id, sort, count, page))
+		blocked_tags = self.user_blocked_tags(user.user_id)
+
+		return [
+			{
+				**post,
+				'blocked': bool(post['tags'] & blocked_tags),
+				'tags': list(post['tags']),
+			}
+			for post in await posts
+		]
 
 
 	@ArgsCache(60)
@@ -403,19 +476,17 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = self._fetch_user_posts(handle, count, page)
+		posts = ensure_future(self._fetch_user_posts(handle, count, page))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
-		return {
-			'posts': [
-				{
-					**post,
-					'blocked': bool(post['tags'] & blocked_tags),
-					'tags': list(post['tags']),
-				}
-				for post in await posts
-			],
-		}		
+		return [
+			{
+				**post,
+				'blocked': bool(post['tags'] & blocked_tags),
+				'tags': list(post['tags']),
+			}
+			for post in await posts
+		]
 
 
 	@HttpErrorHandler("retrieving user's own posts")
