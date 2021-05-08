@@ -137,7 +137,10 @@ class Posts(UserBlocking) :
 					post_scores.downvotes,
 					users.icon,
 					posts.rating,
-					posts.parent
+					posts.parent,
+					posts.created_on,
+					posts.updated_on,
+					posts.filename
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
@@ -172,7 +175,10 @@ class Posts(UserBlocking) :
 					post_scores.downvotes,
 					users.icon,
 					posts.rating,
-					posts.parent
+					posts.parent,
+					posts.created_on,
+					posts.updated_on,
+					posts.filename
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -206,6 +212,9 @@ class Posts(UserBlocking) :
 				},
 				'rating': self._get_rating_map()[row[8]],
 				'parent': row[9],
+				'created': str(row[10]),
+				'updated': str(row[11]),
+				'media': bool(row[12]),
 			}
 			for row in data
 		]
@@ -356,7 +365,8 @@ class Posts(UserBlocking) :
 				post_scores.downvotes,
 				posts.rating,
 				posts.created_on,
-				posts.updated_on
+				posts.updated_on,
+				posts.filename
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -394,6 +404,7 @@ class Posts(UserBlocking) :
 				'rating': self._get_rating_map()[row[8]],
 				'created': str(row[9]),
 				'updated': str(row[10]),
+				'media': bool(row[11]),
 			}
 			for row in data
 		]
@@ -432,7 +443,9 @@ class Posts(UserBlocking) :
 				post_scores.downvotes,
 				posts.rating,
 				posts.parent,
-				posts.created_on
+				posts.created_on,
+				posts.updated_on,
+				posts.filename
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
@@ -471,6 +484,9 @@ class Posts(UserBlocking) :
 				},
 				'rating': self._get_rating_map()[row[8]],
 				'parent': row[9],
+				'created': str(row[10]),
+				'updated': str(row[11]),
+				'media': bool(row[12]),
 			}
 			for row in data
 		]
