@@ -185,7 +185,6 @@ class Posts(UserBlocking) :
 					INNER JOIN kheina.public.users
 						ON users.user_id = posts.uploader
 				WHERE posts.privacy_id = privacy_to_id('public')
-				{'' if logged_in else "AND posts.rating = rating_to_id('general')"}
 				GROUP BY posts.post_id, post_scores.post_id, users.user_id
 				ORDER BY post_scores.{sort.name} DESC NULLS LAST
 				LIMIT %s
