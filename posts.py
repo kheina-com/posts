@@ -28,8 +28,8 @@ class Posts(UserBlocking) :
 			raise BadRequest('the given post id is invalid.', post_id=post_id)
 
 
-	def _validateVote(self, vote: Union[bool, type(None)]) :
-		if not isinstance(vote, (bool, type(None))) :
+	def _validateVote(self, vote: Union[bool, None]) :
+		if not isinstance(vote, (bool, None)) :
 			raise BadRequest('the given vote is invalid (vote value must be integer. 1 = up, -1 = down, 0 or null to remove vote)')
 
 
@@ -44,7 +44,7 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler('processing vote')
-	def vote(self, user: KhUser, post_id: str, upvote: Union[bool, type(None)]) :
+	def vote(self, user: KhUser, post_id: str, upvote: Union[bool, None]) :
 		self._validatePostId(post_id)
 		self._validateVote(upvote)
 
@@ -140,7 +140,10 @@ class Posts(UserBlocking) :
 					posts.parent,
 					posts.created_on,
 					posts.updated_on,
-					posts.filename
+					posts.filename,
+					users.admin,
+					users.mod,
+					users.verified
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
@@ -178,7 +181,10 @@ class Posts(UserBlocking) :
 					posts.parent,
 					posts.created_on,
 					posts.updated_on,
-					posts.filename
+					posts.filename,
+					users.admin,
+					users.mod,
+					users.verified
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -203,6 +209,9 @@ class Posts(UserBlocking) :
 					'handle': row[3],
 					'name': row[4],
 					'icon': row[7],
+					'admin': row[13],
+					'mod': row[14],
+					'verified': row[15],
 				},
 				'tags': await tagService.postTags(row[0]),
 				'score': {
@@ -294,7 +303,10 @@ class Posts(UserBlocking) :
 				post_scores.downvotes,
 				users.icon,
 				posts.rating,
-				posts.parent
+				posts.parent,
+				users.admin,
+				users.mod,
+				users.verified
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -319,6 +331,9 @@ class Posts(UserBlocking) :
 				'handle': data[0][3],
 				'name': data[0][4],
 				'icon': data[0][12],
+				'admin': data[0][15],
+				'mod': data[0][16],
+				'verified': data[0][17],
 			},
 			'privacy': self._get_privacy_map()[data[0][7]],
 			'media_type': self._get_media_type_map()[data[0][8]],
@@ -365,7 +380,10 @@ class Posts(UserBlocking) :
 				posts.rating,
 				posts.created_on,
 				posts.updated_on,
-				posts.filename
+				posts.filename,
+				users.admin,
+				users.mod,
+				users.verified
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -394,6 +412,9 @@ class Posts(UserBlocking) :
 					'handle': row[3],
 					'name': row[4],
 					'icon': row[5],
+					'admin': row[12],
+					'mod': row[13],
+					'verified': row[14],
 				},
 				'tags': await tagService.postTags(row[0]),
 				'score': {
@@ -444,7 +465,10 @@ class Posts(UserBlocking) :
 				posts.parent,
 				posts.created_on,
 				posts.updated_on,
-				posts.filename
+				posts.filename,
+				users.admin,
+				users.mod,
+				users.verified
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
@@ -475,6 +499,9 @@ class Posts(UserBlocking) :
 					'handle': row[3],
 					'name': row[4],
 					'icon': row[5],
+					'admin': row[12],
+					'mod': row[13],
+					'verified': row[14],
 				},
 				'tags': await tagService.postTags(row[0]),
 				'score': {
