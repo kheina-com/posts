@@ -466,9 +466,9 @@ class Posts(UserBlocking) :
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
-				users.admin,
-				users.mod,
-				users.verified
+				u2.admin,
+				u2.mod,
+				u2.verified
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
