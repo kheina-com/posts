@@ -35,12 +35,12 @@ class Posts(UserBlocking) :
 
 	def _validatePageNumber(self, page_number: int) :
 		if page_number < 1 :
-			raise BadRequest('the given page number is invalid.', page_number=page_number)
+			raise BadRequest('the given page number is invalid, page number must be greater than or equal to 1.', page_number=page_number)
 
 
 	def _validateCount(self, count: int) :
-		if count < 1 :
-			raise BadRequest('the given count is invalid.', count=count)
+		if not 1 <= count <= 1000 :
+			raise BadRequest('the given count is invalid, count must be between 1 and 1000.', count=count)
 
 
 	@HttpErrorHandler('processing vote')
@@ -499,9 +499,9 @@ class Posts(UserBlocking) :
 					'handle': row[3],
 					'name': row[4],
 					'icon': row[5],
-					'admin': row[12],
-					'mod': row[13],
-					'verified': row[14],
+					'admin': row[13],
+					'mod': row[14],
+					'verified': row[15],
 				},
 				'tags': await tagService.postTags(row[0]),
 				'score': {
