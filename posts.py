@@ -587,7 +587,6 @@ class Posts(UserBlocking) :
 					'mod': row[14],
 					'verified': row[15],
 				},
-				'tags': await tagService.postTags(row[0]),
 				'score': {
 					'up': row[6],
 					'down': row[7],
