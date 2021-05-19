@@ -538,7 +538,7 @@ class Posts(UserBlocking) :
 
 	@HttpErrorHandler("retrieving user's own posts")
 	@ArgsCache(60)
-	def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
+	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
 			SELECT
 				posts.post_id,

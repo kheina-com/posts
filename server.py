@@ -54,7 +54,7 @@ async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) :
 async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
 	req.user.authenticated()
 	return UJSONResponse(
-		posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
+		await posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
 	)
 
 
