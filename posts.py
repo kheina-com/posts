@@ -565,8 +565,6 @@ class Posts(UserBlocking) :
 					ON posts.uploader = users.user_id
 				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id
-				LEFT JOIN kheina.public.post_scores
-					ON post_scores.post_id = posts.post_id
 			WHERE posts.uploader = %s
 			ORDER BY post_scores.{sort.name} DESC NULLS LAST
 			LIMIT %s
