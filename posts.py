@@ -540,12 +540,33 @@ class Posts(UserBlocking) :
 	@ArgsCache(60)
 	def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
-			SELECT posts.post_id, posts.title, posts.description, privacy.type
+			SELECT
+				posts.post_id,
+				posts.title,
+				posts.description,
+				users.handle,
+				users.display_name,
+				users.icon,
+				post_scores.upvotes,
+				post_scores.downvotes,
+				posts.rating,
+				posts.parent,
+				posts.created_on,
+				posts.updated_on,
+				posts.filename,
+				users.admin,
+				users.mod,
+				users.verified,
+				privacy.type
 			FROM kheina.public.posts
+				INNER JOIN kheina.public.privacy
+					ON privacy.privacy_id = posts.privacy_id
+				INNER JOIN kheina.public.users
+					ON posts.uploader = users.user_id
 				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id
-				LEFT JOIN kheina.public.privacy
-					ON privacy.privacy_id = posts.privacy_id
+				LEFT JOIN kheina.public.post_scores
+					ON post_scores.post_id = posts.post_id
 			WHERE posts.uploader = %s
 			ORDER BY post_scores.{sort.name} DESC NULLS LAST
 			LIMIT %s
@@ -556,6 +577,29 @@ class Posts(UserBlocking) :
 		)
 
 		return [
-			dict(zip(Posts.user_post_keys, row))
+			{
+				'post_id': row[0],
+				'title': row[1],
+				'description': row[2],
+				'user': {
+					'handle': row[3],
+					'name': row[4],
+					'icon': row[5],
+					'admin': row[13],
+					'mod': row[14],
+					'verified': row[15],
+				},
+				'tags': await tagService.postTags(row[0]),
+				'score': {
+					'up': row[6],
+					'down': row[7],
+				} if row[6] else None,
+				'rating': self._get_rating_map()[row[8]],
+				'parent': row[9],
+				'created': str(row[10]),
+				'updated': str(row[11]),
+				'media': bool(row[12]),
+				'privacy': row[16],
+			}
 			for row in data
 		]
