@@ -239,7 +239,7 @@ class Posts(UserBlocking) :
 				**post,
 			)
 			for post in await posts
-			if not post.pop('tags') & blocked_tags
+			if not post['tags'] & blocked_tags
 		]
 
 
@@ -367,7 +367,7 @@ class Posts(UserBlocking) :
 
 		if post['privacy'] in { 'public', 'unlisted' } or user_is_uploader :
 			return Post(
-				blocked = bool(post.pop('tags') & blocked_tags),
+				blocked = bool(post['tags'] & blocked_tags),
 				**post,
 			)
 
@@ -456,7 +456,7 @@ class Posts(UserBlocking) :
 
 		return [
 			Post(
-				blocked = bool(post.pop('tags') & blocked_tags),
+				blocked = bool(post['tags'] & blocked_tags),
 				**post,
 			)
 			for post in await posts
@@ -549,7 +549,7 @@ class Posts(UserBlocking) :
 
 		return [
 			{
-				'blocked': bool(post.pop('tags') & blocked_tags),
+				'blocked': bool(post['tags'] & blocked_tags),
 				**post,
 			}
 			for post in await posts
