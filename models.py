@@ -1,5 +1,9 @@
+from kh_common.models.privacy import Privacy
+from kh_common.models.rating import Rating
 from typing import List, Optional, Union
+from kh_common.models.user import User
 from pydantic import BaseModel
+from datetime import datetime
 from enum import Enum, unique
 
 
@@ -36,3 +40,30 @@ class GetUserPostsRequest(BaseModel) :
 	handle: str
 	count: Optional[int] = 64
 	page: Optional[int] = 1
+
+
+class Score(BaseModel) :
+	up: int
+	down: int
+	total: int
+
+
+class MediaType(BaseModel) :
+	file_type: str
+	mime_type: str
+
+
+class Post(BaseModel) :
+	post_id: str
+	title: Optional[str]
+	description: Optional[str]
+	user: User
+	score: Optional[Score]
+	rating: Rating
+	parent: Optional[str]
+	privacy: Privacy
+	created: datetime
+	updated: datetime
+	filename: str
+	media_type: Optional[MediaType]
+	blocked: bool

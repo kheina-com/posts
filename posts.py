@@ -1,12 +1,16 @@
 from kh_common.exceptions.http_error import BadRequest, Forbidden, HttpErrorHandler, NotFound
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
+from kh_common.models.privacy import Privacy, UserPrivacy
+from kh_common.caching import ArgsCache, SimpleCache
+from models import MediaType, Post, PostSort, Score
 from typing import Any, Dict, List, Tuple, Union
+from kh_common.models.verified import Verified
+from kh_common.models.user import UserPortable
 from kh_common.blocking import UserBlocking
-from kh_common.caching import ArgsCache
+from kh_common.models.rating import Rating
 from collections import defaultdict
 from kh_common.auth import KhUser
 from asyncio import ensure_future
-from models import PostSort
 from tags import Tags
 
 
@@ -14,14 +18,6 @@ tagService = Tags()
 
 
 class Posts(UserBlocking) :
-
-	user_post_keys = (
-		'post_id',
-		'title',
-		'description',
-		'privacy',
-	)
-
 
 	def _validatePostId(self, post_id: str) :
 		if len(post_id) != 8 :
@@ -109,17 +105,11 @@ class Posts(UserBlocking) :
 
 			transaction.commit()
 
-		return {
-			post_id: {
-				'up': up,
-				'down': down,
-				'total': total,
-				'top': top,
-				'hot': hot,
-				'best': best,
-				'controversial': controversial,
-			}
-		}
+		return Score(
+			up = up,
+			down = down,
+			total = total,
+		)
 
 
 	@ArgsCache(60)
@@ -143,7 +133,8 @@ class Posts(UserBlocking) :
 					posts.filename,
 					users.admin,
 					users.mod,
-					users.verified
+					users.verified,
+					posts.media_type_id
 				FROM kheina.public.tags
 					INNER JOIN kheina.public.tag_post
 						ON tag_post.tag_id = tags.tag_id
@@ -184,7 +175,8 @@ class Posts(UserBlocking) :
 					posts.filename,
 					users.admin,
 					users.mod,
-					users.verified
+					users.verified,
+					posts.media_type_id
 				FROM kheina.public.posts
 					INNER JOIN kheina.public.post_scores
 						ON post_scores.post_id = posts.post_id
@@ -205,51 +197,52 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'icon': row[7],
-					'admin': row[13],
-					'mod': row[14],
-					'verified': row[15],
-				},
-				'tags': await tagService.postTags(row[0]),
-				'score': {
-					'up': row[5],
-					'down': row[6],
-				},
+				'user': UserPortable(
+					handle = row[3],
+					name = row[4],
+					privacy = UserPrivacy.public,
+					icon = row[7],
+					verified = Verified.admin if row[13] else (
+						Verified.mod if row[14] else (
+							Verified.artist if row[15] else None
+						)
+					)
+				),
+				'score': Score(
+					up = row[5],
+					down = row[6],
+					total = row[5] + row[6],
+				),
 				'rating': self._get_rating_map()[row[8]],
 				'parent': row[9],
-				'created': str(row[10]),
-				'updated': str(row[11]),
-				'media': bool(row[12]),
+				'created': row[10],
+				'updated': row[11],
+				'filename': row[12],
+				'media_type': self._get_media_type_map()[row[16]],
+				'tags': await tagService.postTags(row[0]),
 			}
 			for row in data
 		]
-
 
 	@HttpErrorHandler('fetching posts')
 	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page, user.authenticated(raise_error=False)))
+		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page, await user.authenticated(raise_error=False)))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
-		return {
-			'posts': [
-				{
-					**post,
-					'blocked': bool(post['tags'] & blocked_tags),
-					'tags': list(post['tags']),
-				}
-				for post in await posts
-				if not post['tags'] & blocked_tags
-			],
-		}
+		return [
+			Post(
+				blocked = False,
+				**post,
+			)
+			for post in await posts
+			if not post.pop('tags') & blocked_tags
+		]
 
 
-	@ArgsCache(600)
+	@SimpleCache(600)
 	def _get_rating_map(self) :
 		data = self.query("""
 			SELECT rating_id, rating
@@ -257,10 +250,10 @@ class Posts(UserBlocking) :
 			""",
 			fetch_all=True,
 		)
-		return dict(data)
+		return { x[0]: Rating[x[1]] for x in data if x[0] in Rating.__members__ }
 
 
-	@ArgsCache(600)
+	@SimpleCache(600)
 	def _get_privacy_map(self) :
 		data = self.query("""
 			SELECT privacy_id, type
@@ -268,10 +261,10 @@ class Posts(UserBlocking) :
 			""",
 			fetch_all=True,
 		)
-		return dict(data)
+		return { x[0]: Privacy[x[1]] for x in data if x[0] in Privacy.__members__ }
 
 
-	@ArgsCache(600)
+	@SimpleCache(600)
 	def _get_media_type_map(self) :
 		data = self.query("""
 			SELECT media_type_id, file_type, mime_type
@@ -280,13 +273,16 @@ class Posts(UserBlocking) :
 			fetch_all=True,
 		)
 		return defaultdict(lambda : None, {
-			row[0]: { 'file_type': row[1], 'mime_type': row[2] }
+			row[0]: MediaType(
+				file_type = row[1],
+				mime_type = row[2],
+			)
 			for row in data
 		})
 
 
 	@ArgsCache(60)
-	def _get_post(self, post_id: str) :
+	async def _get_post(self, post_id: str) :
 		data = self.query("""
 			SELECT
 				posts.title,
@@ -306,7 +302,8 @@ class Posts(UserBlocking) :
 				posts.parent,
 				users.admin,
 				users.mod,
-				users.verified
+				users.verified,
+				posts.post_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -322,45 +319,56 @@ class Posts(UserBlocking) :
 			raise NotFound('no data was found for the provided post id.')
 
 		return {
+			'post_id': data[0][18],
 			'title': data[0][0],
 			'description': data[0][1],
-			'filename': data[0][2],
-			'created': str(data[0][5]),
-			'updated': str(data[0][6]),
-			'user': {
-				'handle': data[0][3],
-				'name': data[0][4],
-				'icon': data[0][12],
-				'admin': data[0][15],
-				'mod': data[0][16],
-				'verified': data[0][17],
-			},
-			'privacy': self._get_privacy_map()[data[0][7]],
-			'media_type': self._get_media_type_map()[data[0][8]],
-			'user_id': data[0][9],
-			'score': {
-				'up': data[0][10],
-				'down': data[0][11],
-			},
+			'user': UserPortable(
+				handle = data[0][3],
+				name = data[0][4],
+				privacy = UserPrivacy.public,
+				icon = data[0][12],
+				verified = Verified.admin if data[0][15] else (
+					Verified.mod if data[0][16] else (
+						Verified.artist if data[0][17] else None
+					)
+				)
+			),
+			'score': Score(
+				up = data[0][10],
+				down = data[0][11],
+				total = data[0][10] + data[0][11],
+			),
 			'rating': self._get_rating_map()[data[0][13]],
 			'parent': data[0][14],
+			'privacy': self._get_privacy_map()[data[0][7]],
+			'created': data[0][5],
+			'updated': data[0][6],
+			'filename': data[0][2],
+			'media_type': self._get_media_type_map()[data[0][8]],
+			'user_id': data[0][9],
+			'tags': await tagService.postTags(data[0][18]),
 		}
 
 
 	@HttpErrorHandler('retrieving post')
-	def getPost(self, user: KhUser, post_id: str) :
+	async def getPost(self, user: KhUser, post_id: str) :
 		self._validatePostId(post_id)
 
-		post = self._get_post(post_id)
+		post = ensure_future(self._get_post(post_id))
+		blocked_tags = self.user_blocked_tags(user.user_id)
+		post = await post
 		uploader = post.pop('user_id')
 
-		if post['privacy'] == 'unpublished' :
+		if post['privacy'] == Privacy.unpublished :
 			post['created'] = post['updated'] = None
 
-		user_is_uploader = uploader == user.user_id and user.authenticated(raise_error=False)
+		user_is_uploader = uploader == user.user_id and await user.authenticated(raise_error=False)
 
 		if post['privacy'] in { 'public', 'unlisted' } or user_is_uploader :
-			return post
+			return Post(
+				blocked = bool(post.pop('tags') & blocked_tags),
+				**post,
+			)
 
 		raise NotFound('no data was found for the provided post id.')
 
@@ -383,7 +391,8 @@ class Posts(UserBlocking) :
 				posts.filename,
 				users.admin,
 				users.mod,
-				users.verified
+				users.verified,
+				posts.media_type_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -408,23 +417,28 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'icon': row[5],
-					'admin': row[12],
-					'mod': row[13],
-					'verified': row[14],
-				},
-				'tags': await tagService.postTags(row[0]),
-				'score': {
-					'up': row[6],
-					'down': row[7],
-				},
+				'user': UserPortable(
+					handle = row[3],
+					name = row[4],
+					privacy = UserPrivacy.public,
+					icon = row[5],
+					verified = Verified.admin if row[12] else (
+						Verified.mod if row[13] else (
+							Verified.artist if row[14] else None
+						)
+					)
+				),
+				'score': Score(
+					up = row[6],
+					down = row[7],
+					total = row[6] + row[7],
+				),
 				'rating': self._get_rating_map()[row[8]],
-				'created': str(row[9]),
-				'updated': str(row[10]),
-				'media': bool(row[11]),
+				'created': row[9],
+				'updated': row[10],
+				'filename': row[11],
+				'media_type': self._get_media_type_map()[row[15]],
+				'tags': await tagService.postTags(row[0]),
 			}
 			for row in data
 		]
@@ -440,11 +454,10 @@ class Posts(UserBlocking) :
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return [
-			{
+			Post(
+				blocked = bool(post.pop('tags') & blocked_tags),
 				**post,
-				'blocked': bool(post['tags'] & blocked_tags),
-				'tags': list(post['tags']),
-			}
+			)
 			for post in await posts
 		]
 
@@ -468,7 +481,8 @@ class Posts(UserBlocking) :
 				posts.filename,
 				u2.admin,
 				u2.mod,
-				u2.verified
+				u2.verified,
+				posts.media_type_id
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
@@ -495,24 +509,30 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'icon': row[5],
-					'admin': row[13],
-					'mod': row[14],
-					'verified': row[15],
-				},
-				'tags': await tagService.postTags(row[0]),
-				'score': {
-					'up': row[6],
-					'down': row[7],
-				},
+				'user': UserPortable(
+					handle = row[3],
+					name = row[4],
+					privacy = UserPrivacy.public,
+					icon = row[5],
+					verified = Verified.admin if row[13] else (
+						Verified.mod if row[14] else (
+							Verified.artist if row[15] else None
+						)
+					)
+				),
+				'score': Score(
+					up = row[6],
+					down = row[7],
+					total = row[6] + row[7],
+				),
 				'rating': self._get_rating_map()[row[8]],
 				'parent': row[9],
-				'created': str(row[10]),
-				'updated': str(row[11]),
-				'media': bool(row[12]),
+				'privacy': Privacy.public,
+				'created': row[10],
+				'updated': row[11],
+				'filename': row[12],
+				'media_type': self._get_media_type_map()[row[16]],
+				'tags': await tagService.postTags(row[0]),
 			}
 			for row in data
 		]
@@ -528,9 +548,8 @@ class Posts(UserBlocking) :
 
 		return [
 			{
+				'blocked': bool(post.pop('tags') & blocked_tags),
 				**post,
-				'blocked': bool(post['tags'] & blocked_tags),
-				'tags': list(post['tags']),
 			}
 			for post in await posts
 		]
@@ -557,10 +576,9 @@ class Posts(UserBlocking) :
 				users.admin,
 				users.mod,
 				users.verified,
-				privacy.type
+				posts.privacy_id,
+				posts.media_type_id
 			FROM kheina.public.posts
-				INNER JOIN kheina.public.privacy
-					ON privacy.privacy_id = posts.privacy_id
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
 				LEFT JOIN kheina.public.post_scores
@@ -575,28 +593,34 @@ class Posts(UserBlocking) :
 		)
 
 		return [
-			{
-				'post_id': row[0],
-				'title': row[1],
-				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'icon': row[5],
-					'admin': row[13],
-					'mod': row[14],
-					'verified': row[15],
-				},
-				'score': {
-					'up': row[6],
-					'down': row[7],
-				} if row[6] else None,
-				'rating': self._get_rating_map()[row[8]],
-				'parent': row[9],
-				'created': str(row[10]),
-				'updated': str(row[11]),
-				'media': bool(row[12]),
-				'privacy': row[16],
-			}
+			Post(
+				post_id = row[0],
+				title = row[1],
+				description = row[2],
+				user = UserPortable(
+					handle = row[3],
+					name = row[4],
+					privacy = UserPrivacy.public,
+					icon = row[5],
+					verified = Verified.admin if row[13] else (
+						Verified.mod if row[14] else (
+							Verified.artist if row[15] else None
+						)
+					)
+				),
+				score = Score(
+					up = row[6],
+					down = row[7],
+					total = row[6] + row[7],
+				) if row[6] is not None else None,
+				rating = self._get_rating_map()[row[8]],
+				parent = row[9],
+				privacy = self._get_privacy_map()[row[16]],
+				created = row[10],
+				updated = row[11],
+				filename = row[12],
+				media_type = self._get_media_type_map()[row[17]],
+				blocked = False,
+			)
 			for row in data
 		]
