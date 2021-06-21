@@ -235,8 +235,8 @@ class Posts(UserBlocking) :
 
 		return [
 			Post(
-				blocked = False,
 				**post,
+				blocked = False,
 			)
 			for post in await posts
 			if not post['tags'] & blocked_tags
@@ -367,8 +367,8 @@ class Posts(UserBlocking) :
 
 		if post['privacy'] in { Privacy.public, Privacy.unlisted } or user_is_uploader :
 			return Post(
-				blocked = bool(post['tags'] & blocked_tags),
 				**post,
+				blocked = bool(post['tags'] & blocked_tags),
 			)
 
 		raise NotFound('no data was found for the provided post id.')
@@ -457,8 +457,8 @@ class Posts(UserBlocking) :
 
 		return [
 			Post(
-				blocked = bool(post['tags'] & blocked_tags),
 				**post,
+				blocked = bool(post['tags'] & blocked_tags),
 			)
 			for post in await posts
 		]
@@ -549,10 +549,10 @@ class Posts(UserBlocking) :
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return [
-			{
-				'blocked': bool(post['tags'] & blocked_tags),
+			Post(
 				**post,
-			}
+				blocked = bool(post['tags'] & blocked_tags),
+			)
 			for post in await posts
 		]
 

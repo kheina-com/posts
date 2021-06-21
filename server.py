@@ -1,5 +1,6 @@
-from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, VoteRequest
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, Score, VoteRequest
 from kh_common.server import JsonResponse, NoContentResponse, Request, ServerApp
+from typing import List
 from posts import Posts
 
 
@@ -13,7 +14,7 @@ async def shutdown() :
 
 
 @app.post('/v1/vote')
-async def v1Vote(req: Request, body: VoteRequest) :
+async def v1Vote(req: Request, body: VoteRequest) -> Score :
 	await req.user.authenticated()
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
 
@@ -23,35 +24,35 @@ async def v1Vote(req: Request, body: VoteRequest) :
 
 
 @app.post('/v1/fetch_posts')
-async def v1FetchPosts(req: Request, body: FetchPostsRequest) :
+async def v1FetchPosts(req: Request, body: FetchPostsRequest) -> List[Post] :
 	return JsonResponse(
 		await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
 	)
 
 
 @app.post('/v1/fetch_comments')
-async def v1FetchComments(req: Request, body: FetchCommentsRequest) :
+async def v1FetchComments(req: Request, body: FetchCommentsRequest) -> List[Post] :
 	return JsonResponse(
 		await posts.fetchComments(req.user, body.post_id, body.sort, body.count, body.page)
 	)
 
 
 @app.get('/v1/post/{post_id}')
-async def v1GetPost(req: Request, post_id: str) :
+async def v1GetPost(req: Request, post_id: str) -> Post :
 	return JsonResponse(
 		await posts.getPost(req.user, post_id)
 	)
 
 
 @app.post('/v1/fetch_user_posts')
-async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) :
+async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) -> List[Post] :
 	return JsonResponse(
 		await posts.fetchUserPosts(req.user, body.handle, body.count, body.page)
 	)
 
 
 @app.post('/v1/fetch_my_posts')
-async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) :
+async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) -> List[Post] :
 	await req.user.authenticated()
 	return JsonResponse(
 		await posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
