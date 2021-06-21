@@ -1,7 +1,7 @@
+from kh_common.models.user import UserPortable
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
 from typing import List, Optional, Union
-from kh_common.models.user import User
 from pydantic import BaseModel
 from datetime import datetime
 from enum import Enum, unique
@@ -57,13 +57,13 @@ class Post(BaseModel) :
 	post_id: str
 	title: Optional[str]
 	description: Optional[str]
-	user: User
+	user: UserPortable
 	score: Optional[Score]
 	rating: Rating
 	parent: Optional[str]
 	privacy: Privacy
-	created: datetime
-	updated: datetime
-	filename: str
+	created: Optional[datetime]
+	updated: Optional[datetime]
+	filename: Optional[str]
 	media_type: Optional[MediaType]
 	blocked: bool
