@@ -250,7 +250,7 @@ class Posts(UserBlocking) :
 			""",
 			fetch_all=True,
 		)
-		return { x[0]: Rating[x[1]] for x in data if x[0] in Rating.__members__ }
+		return { x[0]: Rating[x[1]] for x in data if x[1] in Rating.__members__ }
 
 
 	@SimpleCache(600)
@@ -261,7 +261,7 @@ class Posts(UserBlocking) :
 			""",
 			fetch_all=True,
 		)
-		return { x[0]: Privacy[x[1]] for x in data if x[0] in Privacy.__members__ }
+		return { x[0]: Privacy[x[1]] for x in data if x[1] in Privacy.__members__ }
 
 
 	@SimpleCache(600)
