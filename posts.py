@@ -219,6 +219,7 @@ class Posts(UserBlocking) :
 				'updated': row[11],
 				'filename': row[12],
 				'media_type': self._get_media_type_map()[row[16]],
+				'privacy': Privacy.public,
 				'tags': await tagService.postTags(row[0]),
 			}
 			for row in data
