@@ -365,7 +365,7 @@ class Posts(UserBlocking) :
 
 		user_is_uploader = uploader == user.user_id and await user.authenticated(raise_error=False)
 
-		if post['privacy'] in { 'public', 'unlisted' } or user_is_uploader :
+		if post['privacy'] in { Privacy.public, Privacy.unlisted } or user_is_uploader :
 			return Post(
 				blocked = bool(post['tags'] & blocked_tags),
 				**post,
