@@ -9,7 +9,7 @@ class Tags(Hashable) :
 
 	Timeout: int = 30
 
-	@ArgsCache(10)
+	@ArgsCache(5)
 	async def postTags(self, post_id: str) :
 		async with async_request(
 			'GET',

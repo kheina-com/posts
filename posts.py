@@ -21,7 +21,7 @@ class Posts(UserBlocking) :
 
 	def _validatePostId(self, post_id: str) :
 		if len(post_id) != 8 :
-			raise BadRequest('the given post id is invalid.', post_id=post_id)
+			raise BadRequest(f'the given post id is invalid: {post_id}.')
 
 
 	def _validateVote(self, vote: Union[bool, None]) :
@@ -31,12 +31,12 @@ class Posts(UserBlocking) :
 
 	def _validatePageNumber(self, page_number: int) :
 		if page_number < 1 :
-			raise BadRequest('the given page number is invalid, page number must be greater than or equal to 1.', page_number=page_number)
+			raise BadRequest(f'the given page number is invalid: {page_number}. page number must be greater than or equal to 1.', page_number=page_number)
 
 
 	def _validateCount(self, count: int) :
 		if not 1 <= count <= 1000 :
-			raise BadRequest('the given count is invalid, count must be between 1 and 1000.', count=count)
+			raise BadRequest(f'the given count is invalid: {count}. count must be between 1 and 1000.', count=count)
 
 
 	@HttpErrorHandler('processing vote')
@@ -282,7 +282,7 @@ class Posts(UserBlocking) :
 		})
 
 
-	@ArgsCache(60)
+	@ArgsCache(5)
 	async def _get_post(self, post_id: str) :
 		data = self.query("""
 			SELECT
@@ -317,7 +317,7 @@ class Posts(UserBlocking) :
 		)
 
 		if not data :
-			raise NotFound('no data was found for the provided post id.')
+			raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
 		return {
 			'post_id': data[0][18],
@@ -371,10 +371,10 @@ class Posts(UserBlocking) :
 				blocked = bool(post['tags'] & blocked_tags),
 			)
 
-		raise NotFound('no data was found for the provided post id.')
+		raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
 
-	@ArgsCache(60)
+	@ArgsCache(5)
 	async def _getComments(self, post_id: str, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
 			SELECT
@@ -464,7 +464,7 @@ class Posts(UserBlocking) :
 		]
 
 
-	@ArgsCache(60)
+	@ArgsCache(5)
 	async def _fetch_user_posts(self, handle: str, count: int, page: int) :
 		data = self.query(f"""
 			SELECT DISTINCT
@@ -558,7 +558,7 @@ class Posts(UserBlocking) :
 
 
 	@HttpErrorHandler("retrieving user's own posts")
-	@ArgsCache(60)
+	@ArgsCache(5)
 	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
 		data = self.query(f"""
 			SELECT

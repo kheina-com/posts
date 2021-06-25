@@ -18,45 +18,32 @@ async def v1Vote(req: Request, body: VoteRequest) -> Score :
 	await req.user.authenticated()
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
 
-	return JsonResponse(
-		posts.vote(req.user, body.post_id, vote)
-	)
-
+	return posts.vote(req.user, body.post_id, vote)
 
 @app.post('/v1/fetch_posts', responses={ 200: { 'model': List[Post] } })
 async def v1FetchPosts(req: Request, body: FetchPostsRequest) -> List[Post] :
-	return JsonResponse(
-		await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
-	)
+	return await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
 
 
 @app.post('/v1/fetch_comments', responses={ 200: { 'model': List[Post] } })
 async def v1FetchComments(req: Request, body: FetchCommentsRequest) -> List[Post] :
-	return JsonResponse(
-		await posts.fetchComments(req.user, body.post_id, body.sort, body.count, body.page)
-	)
+	return await posts.fetchComments(req.user, body.post_id, body.sort, body.count, body.page)
 
 
 @app.get('/v1/post/{post_id}', responses={ 200: { 'model': Post } })
 async def v1GetPost(req: Request, post_id: str) -> Post :
-	return JsonResponse(
-		await posts.getPost(req.user, post_id)
-	)
+	return await posts.getPost(req.user, post_id)
 
 
 @app.post('/v1/fetch_user_posts', responses={ 200: { 'model': List[Post] } })
 async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) -> List[Post] :
-	return JsonResponse(
-		await posts.fetchUserPosts(req.user, body.handle, body.count, body.page)
-	)
+	return await posts.fetchUserPosts(req.user, body.handle, body.count, body.page)
 
 
 @app.post('/v1/fetch_my_posts', responses={ 200: { 'model': List[Post] } })
 async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) -> List[Post] :
 	await req.user.authenticated()
-	return JsonResponse(
-		await posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
-	)
+	return await posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
 
 
 if __name__ == '__main__' :
