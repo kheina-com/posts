@@ -9,12 +9,12 @@ from enum import Enum, unique
 
 @unique
 class PostSort(Enum) :
+	new: str = 'new'
+	old: str = 'old'
 	top: str = 'top'
 	hot: str = 'hot'
 	best: str = 'best'
 	controversial: str = 'controversial'
-	# new: str = 'new'
-	# old: str = 'old'
 
 
 class VoteRequest(BaseModel) :

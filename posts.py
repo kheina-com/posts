@@ -1,5 +1,6 @@
-from kh_common.exceptions.http_error import BadRequest, Forbidden, HttpErrorHandler, NotFound
+from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
+from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from kh_common.models.privacy import Privacy, UserPrivacy
 from kh_common.caching import ArgsCache, SimpleCache
 from models import MediaType, Post, PostSort, Score
@@ -113,84 +114,129 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(60)
-	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int, logged_in: bool) :
+	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
 		offset: int = count * (page - 1)
 		if tags :
-			data = self.query(f"""
-				SELECT
-					posts.post_id,
-					posts.title,
-					posts.description,
-					users.handle,
-					users.display_name,
-					post_scores.upvotes,
-					post_scores.downvotes,
-					users.icon,
-					posts.rating,
-					posts.parent,
-					posts.created_on,
-					posts.updated_on,
-					posts.filename,
-					users.admin,
-					users.mod,
-					users.verified,
-					posts.media_type_id
-				FROM kheina.public.tags
-					INNER JOIN kheina.public.tag_post
-						ON tag_post.tag_id = tags.tag_id
-					INNER JOIN kheina.public.posts
-						ON posts.post_id = tag_post.post_id
-							AND posts.privacy_id = privacy_to_id('public')
-					INNER JOIN kheina.public.post_scores
-						ON post_scores.post_id = tag_post.post_id
-					INNER JOIN kheina.public.users
-						ON posts.uploader = users.user_id
-				WHERE tags.tag = any(%s)
-					AND tags.deprecated = false
-				GROUP BY posts.post_id, post_scores.post_id, users.user_id
-				HAVING count(1) >= %s
-				ORDER BY post_scores.{sort.name} DESC NULLS LAST
-				LIMIT %s
-				OFFSET %s;
-				""",
-				(tags, len(tags), count, offset),
-				fetch_all=True,
+			query = Query(
+				Table('kheina.public.tags')
+			).join(
+				Join(
+					JoinType.inner,
+					Table('kheina.public.tag_post'),
+				).where(
+					Where(
+						Field('tag_post', 'tag_id'),
+						Operator.equal,
+						Field('tags', 'tag_id'),
+					),
+				),
+				Join(
+					JoinType.inner,
+					Table('kheina.public.posts'),
+				).where(
+					Where(
+						Field('posts', 'post_id'),
+						Operator.equal,
+						Field('tag_post', 'post_id'),
+					),
+					Where(
+						Field('posts', 'privacy_id'),
+						Operator.equal,
+						"privacy_to_id('public')",
+					),
+				),
+			).where(
+				Where(
+					Field('tags', 'tag'),
+					Operator.equal,
+					Value(tags, 'any'),
+				),
+				Where(
+					Field('tags', 'deprecated'),
+					Operator.equal,
+					False,					
+				),
+			).having(
+				Where(
+					Value(1, 'count'),
+					Operator.equal,
+					Value(len(tags)),
+				),
 			)
 
 		else :
-			data = self.query(f"""
-				SELECT
-					posts.post_id,
-					posts.title,
-					posts.description,
-					users.handle,
-					users.display_name,
-					post_scores.upvotes,
-					post_scores.downvotes,
-					users.icon,
-					posts.rating,
-					posts.parent,
-					posts.created_on,
-					posts.updated_on,
-					posts.filename,
-					users.admin,
-					users.mod,
-					users.verified,
-					posts.media_type_id
-				FROM kheina.public.posts
-					INNER JOIN kheina.public.post_scores
-						ON post_scores.post_id = posts.post_id
-					INNER JOIN kheina.public.users
-						ON users.user_id = posts.uploader
-				WHERE posts.privacy_id = privacy_to_id('public')
-				GROUP BY posts.post_id, post_scores.post_id, users.user_id
-				ORDER BY post_scores.{sort.name} DESC NULLS LAST
-				LIMIT %s
-				OFFSET %s;
-				""",
-				(count, offset),
-				fetch_all=True,
+			query = Query(
+				Table('kheina.public.posts')
+			).where(
+				Where(
+					Field('posts', 'privacy_id'),
+					Operator.equal,
+					"privacy_to_id('public')",
+				),
 			)
+
+		if sort in { PostSort.new, PostSort.old } :
+			query.order(
+				Field('posts', 'created_on'),
+				Order.descending_nulls_last if PostSort.new else Order.ascending_nulls_last,
+			)
+
+		else :
+			query.order(
+				Field('post_scores', sort.name),
+				Order.descending_nulls_last,
+			)
+
+		query.select(
+			Field('posts', 'post_id'),
+			Field('posts', 'title'),
+			Field('posts', 'description'),
+			Field('users', 'handle'),
+			Field('users', 'display_name'),
+			Field('post_scores', 'upvotes'),
+			Field('post_scores', 'downvotes'),
+			Field('users', 'icon'),
+			Field('posts', 'rating'),
+			Field('posts', 'parent'),
+			Field('posts', 'created_on'),
+			Field('posts', 'updated_on'),
+			Field('posts', 'filename'),
+			Field('users', 'admin'),
+			Field('users', 'mod'),
+			Field('users', 'verified'),
+			Field('posts', 'media_type_id'),
+		).join(
+			Join(
+				JoinType.inner,
+				Table('kheina.public.post_scores'),
+			).where(
+				Where(
+					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+			Join(
+				JoinType.inner,
+				Table('kheina.public.users'),
+			).where(
+				Where(
+					Field('users', 'user_id'),
+					Operator.equal,
+					Field('posts', 'uploader'),
+				),
+			),
+		).group(
+			Field('posts', 'post_id'),
+			Field('post_scores', 'post_id'),
+			Field('users', 'user_id'),
+		).limit(
+			count,
+		).page(
+			page,
+		)
+
+		data = self.query(query, fetch_all=True)
 
 		return [
 			{
@@ -230,7 +276,7 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page, await user.authenticated(raise_error=False)))
+		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page))
 		blocked_tags = self.user_blocked_tags(user.user_id)
 
 		return [
