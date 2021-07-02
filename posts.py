@@ -116,6 +116,38 @@ class Posts(UserBlocking) :
 	@ArgsCache(60)
 	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
 		if tags :
+			include_tags = []
+			exclude_tags = []
+
+			include_users = []
+			exclude_users = []
+
+			include_rating = []
+			exclude_rating = []
+
+			for tag in tags :
+				exclude = tag.startswith('-')
+
+				if exclude :
+					tag = tag[1:]
+
+				if tag.startswith('@') :
+					tag = tag[1:]
+					(exclude_users if exclude else include_users).append(tag)
+					break
+
+				if tag in { 'general', 'mature', 'explicit' } :
+					(exclude_rating if exclude else include_rating).append(tag)
+					break
+
+				(exclude_tags if exclude else include_tags).append(tag)
+
+			if len(include_users) > 1 :
+				raise BadRequest('can only search for posts from, at most, one user at a time.')
+
+			if len(include_rating) > 1 :
+				raise BadRequest('can only search for posts from, at most, one rating at a time.')
+
 			query = Query(
 				Table('kheina.public.tags')
 			).join(
@@ -148,7 +180,7 @@ class Posts(UserBlocking) :
 				Where(
 					Field('tags', 'tag'),
 					Operator.equal,
-					Value(tags, 'any'),
+					Value(include_tags, 'any'),
 				),
 				Where(
 					Field('tags', 'deprecated'),
@@ -159,9 +191,56 @@ class Posts(UserBlocking) :
 				Where(
 					Value(1, 'count'),
 					Operator.equal,
-					Value(len(tags)),
+					Value(
+						len(include_tags) + len(include_users) + int(bool(include_rating))
+					),
 				),
 			)
+
+			if exclude_tags :
+				query.where(
+					Where(
+					Field('tags', 'tag'),
+						Operator.not_equal,
+						Value(exclude_tags, 'any'),
+					),
+				)
+
+			if include_users :
+				query.where(
+					Where(
+						Field('users', 'handle'),
+						Operator.equal,
+						Value(include_users[0]),
+					),
+				)
+
+			if exclude_users :
+				query.where(
+					Where(
+						Field('users', 'handle'),
+						Operator.not_equal,
+						Value(exclude_users, 'any'),
+					),
+				)
+
+			if include_rating :
+				query.where(
+					Where(
+						Field('posts', 'rating'),
+						Operator.equal,
+						Value(self._rating_to_id()[include_rating[0]]),
+					),
+				)
+
+			if exclude_rating :
+				query.where(
+					Where(
+						Field('users', 'handle'),
+						Operator.not_equal,
+						Value(list(map(lambda x : self._rating_to_id()[x], exclude_rating)), 'any'),
+					),
+				)
 
 		else :
 			query = Query(
@@ -298,6 +377,10 @@ class Posts(UserBlocking) :
 		)
 		return { x[0]: Rating[x[1]] for x in data if x[1] in Rating.__members__ }
 
+
+	@SimpleCache(600)
+	def _rating_to_id(self) :
+		return { v.name: k for k, v in self._get_rating_map().items() }
 
 	@SimpleCache(600)
 	def _get_privacy_map(self) :
