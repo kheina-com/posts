@@ -115,6 +115,8 @@ class Posts(UserBlocking) :
 
 	@ArgsCache(60)
 	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
+		idk = { }
+
 		if tags :
 			include_tags = []
 			exclude_tags = []
@@ -246,7 +248,7 @@ class Posts(UserBlocking) :
 					),
 				)
 
-			self.logger.info({
+			idk = {
 				'tags': tags,
 				'include_tags': include_tags,
 				'exclude_tags': exclude_tags,
@@ -254,7 +256,7 @@ class Posts(UserBlocking) :
 				'exclude_users': exclude_users,
 				'include_rating': include_rating,
 				'exclude_rating': exclude_rating,
-			})
+			}
 
 		else :
 			query = Query(
@@ -327,6 +329,15 @@ class Posts(UserBlocking) :
 		).page(
 			page,
 		)
+
+
+		sql, params = query.__build_query__()
+
+		self.logger.info({
+			'query': sql,
+			'params': params,
+			**idk,
+		})
 
 		data = self.query(query, fetch_all=True)
 
