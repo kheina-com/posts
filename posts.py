@@ -352,7 +352,7 @@ class Posts(UserBlocking) :
 		)
 
 
-		sql, params = query.__build_query__()
+		sql, params = query.build()
 
 		self.logger.info({
 			'query': sql,
