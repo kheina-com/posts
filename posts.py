@@ -206,9 +206,30 @@ class Posts(UserBlocking) :
 			if exclude_tags :
 				query.where(
 					Where(
-					Field('tags', 'tag'),
-						Operator.not_equal,
-						Value(exclude_tags, 'any'),
+						Field('posts', 'post_id'),
+						Operator.not_in,
+						Query(
+							Table('kheina.public.tags')
+						).select(
+							Field('tag_post', 'post_id'),
+						).join(
+							Join(
+								JoinType.inner,
+								Table('kheina.public.tag_post'),
+							).where(
+								Where(
+									Field('tag_post', 'tag_id'),
+									Operator.equal,
+									Field('tags', 'tag_id'),
+								),
+							),
+						).where(
+							Where(
+								Field('tags', 'tag'),
+								Operator.equal,
+								Value(exclude_tags, 'any'),
+							),
+						),
 					),
 				)
 
@@ -242,9 +263,9 @@ class Posts(UserBlocking) :
 			if exclude_rating :
 				query.where(
 					Where(
-						Field('users', 'handle'),
+						Field('posts', 'rating'),
 						Operator.not_equal,
-						Value(list(map(lambda x : self._rating_to_id()[x], exclude_rating)), 'any'),
+						Value(list(map(lambda x : self._rating_to_id()[x], exclude_rating)), 'all'),
 					),
 				)
 
