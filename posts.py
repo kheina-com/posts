@@ -115,7 +115,6 @@ class Posts(UserBlocking) :
 
 	@ArgsCache(60)
 	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
-		offset: int = count * (page - 1)
 		if tags :
 			query = Query(
 				Table('kheina.public.tags')
@@ -178,7 +177,7 @@ class Posts(UserBlocking) :
 		if sort in { PostSort.new, PostSort.old } :
 			query.order(
 				Field('posts', 'created_on'),
-				Order.descending_nulls_last if PostSort.new else Order.ascending_nulls_last,
+				Order.descending_nulls_last if sort == PostSort.new else Order.ascending_nulls_last,
 			)
 
 		else :
