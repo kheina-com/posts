@@ -136,11 +136,11 @@ class Posts(UserBlocking) :
 				if tag.startswith('@') :
 					tag = tag[1:]
 					(exclude_users if exclude else include_users).append(tag)
-					break
+					continue
 
 				if tag in { 'general', 'mature', 'explicit' } :
 					(exclude_rating if exclude else include_rating).append(tag)
-					break
+					continue
 
 				(exclude_tags if exclude else include_tags).append(tag)
 
