@@ -178,11 +178,6 @@ class Posts(UserBlocking) :
 				),
 			).where(
 				Where(
-					Field('tags', 'tag'),
-					Operator.equal,
-					Value(include_tags, 'any'),
-				),
-				Where(
 					Field('tags', 'deprecated'),
 					Operator.equal,
 					False,					
@@ -196,6 +191,15 @@ class Posts(UserBlocking) :
 					),
 				),
 			)
+
+			if include_tags :
+				query.where(
+					Where(
+						Field('tags', 'tag'),
+						Operator.equal,
+						Value(include_tags, 'any'),
+					),
+				)
 
 			if exclude_tags :
 				query.where(
@@ -241,6 +245,16 @@ class Posts(UserBlocking) :
 						Value(list(map(lambda x : self._rating_to_id()[x], exclude_rating)), 'any'),
 					),
 				)
+
+			self.logger.info({
+				'tags': tags,
+				'include_tags': include_tags,
+				'exclude_tags': exclude_tags,
+				'include_users': include_users,
+				'exclude_users': exclude_users,
+				'include_rating': include_rating,
+				'exclude_rating': exclude_rating,
+			})
 
 		else :
 			query = Query(
