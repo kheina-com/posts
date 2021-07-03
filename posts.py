@@ -725,6 +725,8 @@ class Posts(UserBlocking) :
 			Field('posts', 'post_id'),
 			Field('post_scores', 'post_id'),
 			Field('users', 'user_id'),
+			Field('post_votes', 'post_id'),
+			Field('post_votes', 'user_id'),
 		).order(
 			Field('posts', 'created_on'),
 			Order.descending_nulls_last,
