@@ -638,6 +638,149 @@ class Posts(UserBlocking) :
 		]
 
 
+	@ArgsCache(10)
+	async def timelinePosts(self, user: KhUser, count: int, page: int) -> List[Post] :
+		self._validatePageNumber(page)
+		self._validateCount(count)
+
+		query = Query(
+			Table('kheina.public.posts')
+		).select(
+			Field('posts', 'post_id'),
+			Field('posts', 'title'),
+			Field('posts', 'description'),
+			Field('users', 'handle'),
+			Field('users', 'display_name'),
+			Field('post_scores', 'upvotes'),
+			Field('post_scores', 'downvotes'),
+			Field('users', 'icon'),
+			Field('posts', 'rating'),
+			Field('posts', 'parent'),
+			Field('posts', 'created_on'),
+			Field('posts', 'updated_on'),
+			Field('posts', 'filename'),
+			Field('users', 'admin'),
+			Field('users', 'mod'),
+			Field('users', 'verified'),
+			Field('posts', 'media_type_id'),
+			Field('post_votes', 'upvote'),
+		).join(
+			Join(
+				JoinType.inner,
+				Table('kheina.public.following'),
+			).where(
+				Where(
+					Field('following', 'user_id'),
+					Operator.equal,
+					Value(user.user_id),
+				),
+				Where(
+					Field('following', 'user_id'),
+					Operator.equal,
+					Field('posts', 'uploader'),
+				),
+			),
+			Join(
+				JoinType.inner,
+				Table('kheina.public.post_scores'),
+			).where(
+				Where(
+					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+			Join(
+				JoinType.inner,
+				Table('kheina.public.users'),
+			).where(
+				Where(
+					Field('users', 'user_id'),
+					Operator.equal,
+					Field('posts', 'uploader'),
+				),
+			),
+			Join(
+				JoinType.inner,
+				Table('kheina.public.users'),
+			).where(
+				Where(
+					Field('users', 'user_id'),
+					Operator.equal,
+					Field('posts', 'uploader'),
+				),
+			),
+			Join(
+				JoinType.left,
+				Table('kheina.public.post_votes'),
+			).where(
+				Where(
+					Field('post_votes', 'user_id'),
+					Operator.equal,
+					Field('following', 'user_id'),
+				),
+				Where(
+					Field('post_votes', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+		).where(
+			Where(
+				Field('posts', 'privacy'),
+				Operator.equal,
+				"privacy_to_id('public')"
+			),
+		).group(
+			Field('posts', 'post_id'),
+			Field('post_scores', 'post_id'),
+			Field('users', 'user_id'),
+		).order(
+			Field('posts', 'created_on'),
+			Order.descending_nulls_last,
+		).limit(
+			count,
+		).page(
+			page,
+		)
+
+		data = self.query(query, fetch_all=True)
+
+		return [
+			{
+				'post_id': row[0],
+				'title': row[1],
+				'description': row[2],
+				'user': UserPortable(
+					handle = row[3],
+					name = row[4],
+					privacy = UserPrivacy.public,
+					icon = row[7],
+					verified = Verified.admin if row[13] else (
+						Verified.mod if row[14] else (
+							Verified.artist if row[15] else None
+						)
+					)
+				),
+				'score': Score(
+					up = row[5],
+					down = row[6],
+					total = row[5] + row[6],
+					user_vote = 0 if row[17] is None else (1 if row[17] else -1)
+				) if row[5] is not None else None,
+				'rating': self._get_rating_map()[row[8]],
+				'parent': row[9],
+				'created': row[10],
+				'updated': row[11],
+				'filename': row[12],
+				'media_type': self._get_media_type_map()[row[16]],
+				'privacy': Privacy.public,
+				'tags': await tagService.postTags(row[0]),
+			}
+			for row in data
+		]
+
+
 	@ArgsCache(5)
 	async def _fetch_user_posts(self, handle: str, count: int, page: int) :
 		data = self.query(f"""

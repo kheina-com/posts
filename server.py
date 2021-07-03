@@ -1,4 +1,4 @@
-from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, Score, VoteRequest
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, Score, TimelineRequest, VoteRequest
 from kh_common.server import JsonResponse, NoContentResponse, Request, ServerApp
 from typing import List
 from posts import Posts
@@ -44,6 +44,12 @@ async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) -> List[Post
 async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) -> List[Post] :
 	await req.user.authenticated()
 	return await posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
+
+
+@app.post('/v1/timeline_posts', responses={ 200: { 'model': List[Post] } })
+async def v1TimelinePosts(req: Request, body: TimelineRequest) -> List[Post] :
+	await req.user.authenticated()
+	return await posts.timelinePosts(req.user, body.count, body.page)
 
 
 if __name__ == '__main__' :

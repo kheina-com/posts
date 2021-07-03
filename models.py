@@ -22,10 +22,14 @@ class VoteRequest(BaseModel) :
 	vote: Union[int, None]
 
 
-class BaseFetchRequest(BaseModel) :
+class TimelineRequest(BaseModel) :
 	sort: PostSort
 	count: Optional[int] = 64
 	page: Optional[int] = 1
+
+
+class BaseFetchRequest(TimelineRequest) :
+	sort: PostSort
 
 
 class FetchPostsRequest(BaseFetchRequest) :
@@ -46,6 +50,7 @@ class Score(BaseModel) :
 	up: int
 	down: int
 	total: int
+	user_vote: Optional[int]
 
 
 class MediaType(BaseModel) :
