@@ -4,11 +4,11 @@ from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFou
 from kh_common.models.privacy import Privacy, UserPrivacy
 from kh_common.caching import ArgsCache, SimpleCache
 from models import MediaType, Post, PostSort, Score
-from typing import Any, Dict, List, Tuple, Union
 from kh_common.models.verified import Verified
 from kh_common.models.user import UserPortable
 from kh_common.blocking import UserBlocking
 from kh_common.models.rating import Rating
+from typing import List, Set, Tuple, Union
 from collections import defaultdict
 from kh_common.auth import KhUser
 from asyncio import ensure_future
@@ -367,17 +367,17 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': UserPortable(
-					handle = row[3],
-					name = row[4],
-					privacy = UserPrivacy.public,
-					icon = row[7],
-					verified = Verified.admin if row[13] else (
+				'user': {
+					'handle': row[3],
+					'name': row[4],
+					'privacy': UserPrivacy.public,
+					'icon': row[7],
+					'verified': Verified.admin if row[13] else (
 						Verified.mod if row[14] else (
 							Verified.artist if row[15] else None
 						)
 					)
-				),
+				},
 				'score': Score(
 					up = row[5],
 					down = row[6],
@@ -406,6 +406,10 @@ class Posts(UserBlocking) :
 		return [
 			Post(
 				**post,
+				user = UserPortable(
+					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
+					**post['user'],
+				),
 				blocked = False,
 			)
 			for post in await posts
@@ -456,6 +460,25 @@ class Posts(UserBlocking) :
 		})
 
 
+	@ArgsCache(10)
+	def _get_followers(self, user_id) -> Set[str] :
+		if not user_id :
+			return set()
+
+		data = self.query("""
+			SELECT
+				users.handle
+			FROM kheina.public.following
+				INNER JOIN kheina.public.users
+					ON users.user_id = following.follows
+			WHERE following.user_id = %s;
+			""",
+			(user_id,),
+			fetch_all=True,
+		)
+		return set(map(lambda x : x[0].lower(), data))
+
+
 	@ArgsCache(5)
 	async def _get_post(self, post_id: str) :
 		data = self.query("""
@@ -497,17 +520,17 @@ class Posts(UserBlocking) :
 			'post_id': data[0][18],
 			'title': data[0][0],
 			'description': data[0][1],
-			'user': UserPortable(
-				handle = data[0][3],
-				name = data[0][4],
-				privacy = UserPrivacy.public,
-				icon = data[0][12],
-				verified = Verified.admin if data[0][15] else (
+			'user': {
+				'handle': data[0][3],
+				'name': data[0][4],
+				'privacy': UserPrivacy.public,
+				'icon': data[0][12],
+				'verified': Verified.admin if data[0][15] else (
 					Verified.mod if data[0][16] else (
 						Verified.artist if data[0][17] else None
 					)
 				)
-			),
+			},
 			'score': Score(
 				up = data[0][10],
 				down = data[0][11],
@@ -542,6 +565,10 @@ class Posts(UserBlocking) :
 		if post['privacy'] in { Privacy.public, Privacy.unlisted } or user_is_uploader :
 			return Post(
 				**post,
+				user = UserPortable(
+					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
+					**post['user'],
+				),
 				blocked = bool(post['tags'] & blocked_tags),
 			)
 
@@ -592,17 +619,17 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': UserPortable(
-					handle = row[3],
-					name = row[4],
-					privacy = UserPrivacy.public,
-					icon = row[5],
-					verified = Verified.admin if row[12] else (
+				'user': {
+					'handle': row[3],
+					'name': row[4],
+					'privacy': UserPrivacy.public,
+					'icon': row[5],
+					'verified': Verified.admin if row[12] else (
 						Verified.mod if row[13] else (
 							Verified.artist if row[14] else None
 						)
 					)
-				),
+				},
 				'score': Score(
 					up = row[6],
 					down = row[7],
@@ -632,6 +659,10 @@ class Posts(UserBlocking) :
 		return [
 			Post(
 				**post,
+				user = UserPortable(
+					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
+					**post['user'],
+				),
 				blocked = bool(post['tags'] & blocked_tags),
 			)
 			for post in await posts
@@ -736,39 +767,41 @@ class Posts(UserBlocking) :
 			page,
 		)
 
+		blocked_tags = self.user_blocked_tags(user.user_id)
 		data = self.query(query, fetch_all=True)
 
 		return [
-			{
-				'post_id': row[0],
-				'title': row[1],
-				'description': row[2],
-				'user': UserPortable(
+			Post(
+				post_id = row[0],
+				title = row[1],
+				description = row[2],
+				user = UserPortable(
 					handle = row[3],
 					name = row[4],
 					privacy = UserPrivacy.public,
 					icon = row[7],
+					following = True,
 					verified = Verified.admin if row[13] else (
 						Verified.mod if row[14] else (
 							Verified.artist if row[15] else None
 						)
 					)
 				),
-				'score': Score(
+				score = Score(
 					up = row[5],
 					down = row[6],
 					total = row[5] + row[6],
 					user_vote = 0 if row[17] is None else (1 if row[17] else -1)
 				) if row[5] is not None else None,
-				'rating': self._get_rating_map()[row[8]],
-				'parent': row[9],
-				'created': row[10],
-				'updated': row[11],
-				'filename': row[12],
-				'media_type': self._get_media_type_map()[row[16]],
-				'privacy': Privacy.public,
-				'tags': await tagService.postTags(row[0]),
-			}
+				rating = self._get_rating_map()[row[8]],
+				parent = row[9],
+				created = row[10],
+				updated = row[11],
+				filename = row[12],
+				media_type = self._get_media_type_map()[row[16]],
+				privacy = Privacy.public,
+				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
+			)
 			for row in data
 		]
 
@@ -820,17 +853,17 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': UserPortable(
-					handle = row[3],
-					name = row[4],
-					privacy = UserPrivacy.public,
-					icon = row[5],
-					verified = Verified.admin if row[13] else (
+				'user': {
+					'handle': row[3],
+					'name': row[4],
+					'privacy': UserPrivacy.public,
+					'icon': row[5],
+					'verified': Verified.admin if row[13] else (
 						Verified.mod if row[14] else (
 							Verified.artist if row[15] else None
 						)
 					)
-				),
+				},
 				'score': Score(
 					up = row[6],
 					down = row[7],
@@ -860,6 +893,10 @@ class Posts(UserBlocking) :
 		return [
 			Post(
 				**post,
+				user = UserPortable(
+					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
+					**post['user'],
+				),
 				blocked = bool(post['tags'] & blocked_tags),
 			)
 			for post in await posts
@@ -913,6 +950,7 @@ class Posts(UserBlocking) :
 					name = row[4],
 					privacy = UserPrivacy.public,
 					icon = row[5],
+					following = False,
 					verified = Verified.admin if row[13] else (
 						Verified.mod if row[14] else (
 							Verified.artist if row[15] else None
