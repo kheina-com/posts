@@ -717,7 +717,7 @@ class Posts(UserBlocking) :
 			),
 		).where(
 			Where(
-				Field('posts', 'privacy'),
+				Field('posts', 'privacy_id'),
 				Operator.equal,
 				"privacy_to_id('public')"
 			),
