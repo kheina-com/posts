@@ -675,7 +675,7 @@ class Posts(UserBlocking) :
 					Value(user.user_id),
 				),
 				Where(
-					Field('following', 'user_id'),
+					Field('following', 'follows'),
 					Operator.equal,
 					Field('posts', 'uploader'),
 				),
