@@ -701,16 +701,6 @@ class Posts(UserBlocking) :
 				),
 			),
 			Join(
-				JoinType.inner,
-				Table('kheina.public.users'),
-			).where(
-				Where(
-					Field('users', 'user_id'),
-					Operator.equal,
-					Field('posts', 'uploader'),
-				),
-			),
-			Join(
 				JoinType.left,
 				Table('kheina.public.post_votes'),
 			).where(
