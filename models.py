@@ -23,7 +23,6 @@ class VoteRequest(BaseModel) :
 
 
 class TimelineRequest(BaseModel) :
-	sort: PostSort
 	count: Optional[int] = 64
 	page: Optional[int] = 1
 
