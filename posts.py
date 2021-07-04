@@ -43,7 +43,7 @@ class Posts(UserBlocking) :
 
 	async def _dict_to_post(self, post: dict, user: KhUser) -> Post :
 		post = copy(post)
-		user = post.pop('user')
+		uploader = post.pop('user')
 
 		if post['privacy'] == Privacy.unpublished :
 			post['created'] = post['updated'] = None
@@ -51,8 +51,8 @@ class Posts(UserBlocking) :
 		return Post(
 			**post,
 			user = UserPortable(
-				following = user['handle'].lower() in self._get_followers(user.user_id),
-				**user,
+				following = uploader['handle'].lower() in self._get_followers(user.user_id),
+				**uploader,
 			),
 			blocked = (
 				bool(post['tags'] & self.user_blocked_tags(user.user_id))
