@@ -429,12 +429,7 @@ class Posts(UserBlocking) :
 		if posts :
 			await wait(posts)
 
-		return list(
-			map(
-				Task.result,
-				await posts,
-			)
-		)
+		return list(map(Task.result, posts))
 
 
 	@SimpleCache(600)
@@ -667,12 +662,7 @@ class Posts(UserBlocking) :
 		if posts :
 			await wait(posts)
 
-		return list(
-			map(
-				Task.result,
-				await posts,
-			)
-		)
+		return list(map(Task.result, posts))
 
 
 	@ArgsCache(10)
@@ -898,12 +888,7 @@ class Posts(UserBlocking) :
 		if posts :
 			await wait(posts)
 
-		return list(
-			map(
-				Task.result,
-				await posts,
-			)
-		)
+		return list(map(Task.result, posts))
 
 
 	@HttpErrorHandler("retrieving user's own posts")
