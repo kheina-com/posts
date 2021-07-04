@@ -426,7 +426,8 @@ class Posts(UserBlocking) :
 		posts = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
 		posts = [ensure_future(self._dict_to_post(post, user)) for post in await posts]
 
-		await wait(posts)
+		if posts :
+			await wait(posts)
 
 		return list(
 			map(
@@ -663,7 +664,8 @@ class Posts(UserBlocking) :
 
 		posts = [ensure_future(self._dict_to_post(post, user)) for post in await self._getComments(post_id, sort, count, page)]
 
-		await wait(posts)
+		if posts :
+			await wait(posts)
 
 		return list(
 			map(
@@ -893,7 +895,8 @@ class Posts(UserBlocking) :
 
 		posts = [ensure_future(self._dict_to_post(post, user)) for post in await self._fetch_user_posts(handle, count, page)]
 
-		await wait(posts)
+		if posts :
+			await wait(posts)
 
 		return list(
 			map(
