@@ -27,7 +27,7 @@ class Posts(UserBlocking) :
 
 
 	def _validateVote(self, vote: Union[bool, None]) :
-		if not isinstance(vote, (bool, None)) :
+		if not isinstance(vote, (bool, type(None))) :
 			raise BadRequest('the given vote is invalid (vote value must be integer. 1 = up, -1 = down, 0 or null to remove vote)')
 
 
@@ -132,7 +132,7 @@ class Posts(UserBlocking) :
 			up = up,
 			down = down,
 			total = total,
-			user_vote = True,
+			user_vote = 0 if upvote is None else (1 if upvote else -1),
 		)
 
 
