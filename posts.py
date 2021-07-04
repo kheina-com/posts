@@ -427,7 +427,7 @@ class Posts(UserBlocking) :
 
 		return list(
 			map(
-				lambda x : self._dict_to_post(x, user),
+				lambda x : await self._dict_to_post(x, user),
 				await posts
 			)
 		)
@@ -575,7 +575,7 @@ class Posts(UserBlocking) :
 		user_is_uploader = uploader == user.user_id and await user.authenticated(raise_error=False)
 
 		if post['privacy'] in { Privacy.public, Privacy.unlisted } or user_is_uploader :
-			return self._dict_to_post(post, user)
+			return await self._dict_to_post(post, user)
 
 		raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
@@ -662,7 +662,7 @@ class Posts(UserBlocking) :
 
 		return list(
 			map(
-				lambda x : self._dict_to_post(x, user),
+				lambda x : await self._dict_to_post(x, user),
 				await posts
 			)
 		)
@@ -890,7 +890,7 @@ class Posts(UserBlocking) :
 
 		return list(
 			map(
-				lambda x : self._dict_to_post(x, user),
+				lambda x : await self._dict_to_post(x, user),
 				await posts
 			)
 		)
