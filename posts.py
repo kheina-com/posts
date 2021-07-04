@@ -12,6 +12,7 @@ from typing import List, Set, Tuple, Union
 from collections import defaultdict
 from kh_common.auth import KhUser
 from asyncio import ensure_future
+from copy import copy
 from tags import Tags
 
 
@@ -38,6 +39,27 @@ class Posts(UserBlocking) :
 	def _validateCount(self, count: int) :
 		if not 1 <= count <= 1000 :
 			raise BadRequest(f'the given count is invalid: {count}. count must be between 1 and 1000.', count=count)
+
+
+	async def _dict_to_post(self, post: dict, user: KhUser) -> Post :
+		post = copy(post)
+		user = post.pop('user')
+
+		if post['privacy'] == Privacy.unpublished :
+			post['created'] = post['updated'] = None
+
+		return Post(
+			**post,
+			user = UserPortable(
+				following = user['handle'].lower() in self._get_followers(user.user_id),
+				**user,
+			),
+			blocked = (
+				bool(post['tags'] & self.user_blocked_tags(user.user_id))
+				if 'tags' in post else
+				bool(await tagService.postTags(post['post_id']) & self.user_blocked_tags(user.user_id))
+			),
+		)
 
 
 	@HttpErrorHandler('processing vote')
@@ -110,6 +132,7 @@ class Posts(UserBlocking) :
 			up = up,
 			down = down,
 			total = total,
+			user_vote = True,
 		)
 
 
@@ -401,20 +424,13 @@ class Posts(UserBlocking) :
 		self._validateCount(count)
 
 		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page))
-		blocked_tags = self.user_blocked_tags(user.user_id)
 
-		return [
-			Post(
-				**post,
-				user = UserPortable(
-					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
-					**post['user'],
-				),
-				blocked = False,
+		return list(
+			map(
+				lambda x : self._dict_to_post(x, user),
+				await posts
 			)
-			for post in await posts
-			if not post['tags'] & blocked_tags
-		]
+		)
 
 
 	@SimpleCache(600)
@@ -553,24 +569,13 @@ class Posts(UserBlocking) :
 		self._validatePostId(post_id)
 
 		post = ensure_future(self._get_post(post_id))
-		blocked_tags = self.user_blocked_tags(user.user_id)
 		post = await post
 		uploader = post.pop('user_id')
-
-		if post['privacy'] == Privacy.unpublished :
-			post['created'] = post['updated'] = None
 
 		user_is_uploader = uploader == user.user_id and await user.authenticated(raise_error=False)
 
 		if post['privacy'] in { Privacy.public, Privacy.unlisted } or user_is_uploader :
-			return Post(
-				**post,
-				user = UserPortable(
-					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
-					**post['user'],
-				),
-				blocked = bool(post['tags'] & blocked_tags),
-			)
+			return self._dict_to_post(post, user)
 
 		raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
@@ -654,19 +659,13 @@ class Posts(UserBlocking) :
 		self._validateCount(count)
 
 		posts = ensure_future(self._getComments(post_id, sort, count, page))
-		blocked_tags = self.user_blocked_tags(user.user_id)
 
-		return [
-			Post(
-				**post,
-				user = UserPortable(
-					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
-					**post['user'],
-				),
-				blocked = bool(post['tags'] & blocked_tags),
+		return list(
+			map(
+				lambda x : self._dict_to_post(x, user),
+				await posts
 			)
-			for post in await posts
-		]
+		)
 
 
 	@ArgsCache(10)
@@ -888,19 +887,13 @@ class Posts(UserBlocking) :
 		self._validateCount(count)
 
 		posts = ensure_future(self._fetch_user_posts(handle, count, page))
-		blocked_tags = self.user_blocked_tags(user.user_id)
 
-		return [
-			Post(
-				**post,
-				user = UserPortable(
-					following = post['user']['handle'].lower() in self._get_followers(user.user_id),
-					**post['user'],
-				),
-				blocked = bool(post['tags'] & blocked_tags),
+		return list(
+			map(
+				lambda x : self._dict_to_post(x, user),
+				await posts
 			)
-			for post in await posts
-		]
+		)
 
 
 	@HttpErrorHandler("retrieving user's own posts")
