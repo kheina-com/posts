@@ -6,12 +6,12 @@ from kh_common.caching import ArgsCache, SimpleCache
 from models import MediaType, Post, PostSort, Score
 from kh_common.models.verified import Verified
 from kh_common.models.user import UserPortable
+from asyncio import ensure_future, Task, wait
 from kh_common.blocking import UserBlocking
 from kh_common.models.rating import Rating
 from typing import List, Set, Tuple, Union
 from collections import defaultdict
 from kh_common.auth import KhUser
-from asyncio import ensure_future
 from copy import copy
 from tags import Tags
 
@@ -423,12 +423,15 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = ensure_future(self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page))
+		posts = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
+		posts = [ensure_future(self._dict_to_post(post, user)) for post in await posts]
+
+		await wait(posts)
 
 		return list(
 			map(
-				lambda x : await self._dict_to_post(x, user),
-				await posts
+				Task.result,
+				await posts,
 			)
 		)
 
@@ -658,12 +661,14 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = ensure_future(self._getComments(post_id, sort, count, page))
+		posts = [ensure_future(self._dict_to_post(post, user)) for post in await self._getComments(post_id, sort, count, page)]
+
+		await wait(posts)
 
 		return list(
 			map(
-				lambda x : await self._dict_to_post(x, user),
-				await posts
+				Task.result,
+				await posts,
 			)
 		)
 
@@ -886,12 +891,14 @@ class Posts(UserBlocking) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = ensure_future(self._fetch_user_posts(handle, count, page))
+		posts = [ensure_future(self._dict_to_post(post, user)) for post in await self._fetch_user_posts(handle, count, page)]
+
+		await wait(posts)
 
 		return list(
 			map(
-				lambda x : await self._dict_to_post(x, user),
-				await posts
+				Task.result,
+				await posts,
 			)
 		)
 
