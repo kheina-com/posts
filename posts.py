@@ -323,6 +323,9 @@ class Posts(UserBlocking) :
 			query.order(
 				Field('post_scores', sort.name),
 				Order.descending_nulls_last,
+			).order(
+				Field('posts', 'created_on'),
+				Order.descending_nulls_last,
 			)
 
 		query.select(
@@ -894,39 +897,76 @@ class Posts(UserBlocking) :
 	@HttpErrorHandler("retrieving user's own posts")
 	@ArgsCache(5)
 	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
-		data = self.query(f"""
-			SELECT
-				posts.post_id,
-				posts.title,
-				posts.description,
-				users.handle,
-				users.display_name,
-				users.icon,
-				post_scores.upvotes,
-				post_scores.downvotes,
-				posts.rating,
-				posts.parent,
-				posts.created_on,
-				posts.updated_on,
-				posts.filename,
-				users.admin,
-				users.mod,
-				users.verified,
-				posts.privacy_id,
-				posts.media_type_id
-			FROM kheina.public.posts
-				INNER JOIN kheina.public.users
-					ON posts.uploader = users.user_id
-				LEFT JOIN kheina.public.post_scores
-					ON post_scores.post_id = posts.post_id
-			WHERE posts.uploader = %s
-			ORDER BY post_scores.{sort.name} DESC NULLS LAST
-			LIMIT %s
-			OFFSET %s;
-			""",
-			(user.user_id, count, count * (page - 1)),
-			fetch_all=True,
+		query = Query(
+			Table('kheina.public.posts')
+		).Select(
+			Field('posts', 'post_id'),
+			Field('posts', 'title'),
+			Field('posts', 'description'),
+			Field('users', 'handle'),
+			Field('users', 'display_name'),
+			Field('users', 'icon'),
+			Field('post_scores', 'upvotes'),
+			Field('post_scores', 'downvotes'),
+			Field('posts', 'rating'),
+			Field('posts', 'parent'),
+			Field('posts', 'created_on'),
+			Field('posts', 'updated_on'),
+			Field('posts', 'filename'),
+			Field('users', 'admin'),
+			Field('users', 'mod'),
+			Field('users', 'verified'),
+			Field('posts', 'privacy_id'),
+			Field('posts', 'media_type_id'),
+		).join(
+			Join(
+				JoinType.inner,
+				Table('kheina.public.users'),
+			).where(
+				Where(
+					Field('posts', 'uploader'),
+					Operator.equal,
+					Field('users', 'user_id'),
+				),
+			),
+			Join(
+				JoinType.left,
+				Table('kheina.public.post_scores'),
+			).where(
+				Where(
+					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+		).where(
+			Where(
+				Field('posts', 'uploader'),
+				Operator.equal,
+				Value(user.user_id),				
+			),
+		).limit(
+			count,
+		).page(
+			page,
 		)
+
+		if sort in { PostSort.new, PostSort.old } :
+			query.order(
+				Field('posts', 'created_on'),
+				Order.descending_nulls_last if sort == PostSort.new else Order.ascending_nulls_last,
+			)
+
+		else :
+			query.order(
+				Field('post_scores', sort.name),
+				Order.descending_nulls_last,
+			).order(
+				Field('posts', 'created_on'),
+				Order.descending_nulls_last,
+			)
+
+		data = self.query(query, fetch_all=True)
 
 		return [
 			Post(
