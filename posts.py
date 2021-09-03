@@ -899,7 +899,7 @@ class Posts(UserBlocking) :
 	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
 		query = Query(
 			Table('kheina.public.posts')
-		).Select(
+		).select(
 			Field('posts', 'post_id'),
 			Field('posts', 'title'),
 			Field('posts', 'description'),
