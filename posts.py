@@ -897,6 +897,9 @@ class Posts(UserBlocking) :
 	@HttpErrorHandler("retrieving user's own posts")
 	@ArgsCache(5)
 	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
+		self._validatePageNumber(page)
+		self._validateCount(count)
+
 		query = Query(
 			Table('kheina.public.posts')
 		).select(
