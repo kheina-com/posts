@@ -4,12 +4,14 @@ from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFou
 from kh_common.models.privacy import Privacy, UserPrivacy
 from kh_common.caching import ArgsCache, SimpleCache
 from models import MediaType, Post, PostSort, Score
+from kh_common.config.constants import users_host
 from kh_common.models.verified import Verified
 from kh_common.models.user import UserPortable
 from asyncio import ensure_future, Task, wait
 from kh_common.blocking import UserBlocking
 from kh_common.models.rating import Rating
 from typing import List, Set, Tuple, Union
+from kh_common.gateway import Gateway
 from collections import defaultdict
 from kh_common.auth import KhUser
 from copy import copy
@@ -17,6 +19,7 @@ from tags import Tags
 
 
 tagService = Tags()
+UsersService = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 
 
 class Posts(UserBlocking) :
@@ -50,10 +53,7 @@ class Posts(UserBlocking) :
 
 		return Post(
 			**post,
-			user = UserPortable(
-				following = uploader['handle'].lower() in self._get_followers(user.user_id),
-				**uploader,
-			),
+			user = await UsersService(handle=uploader, auth=user.token.token_string if user.token else None),
 			blocked = (
 				bool(post['tags'] & self.user_blocked_tags(user.user_id))
 				if 'tags' in post else
@@ -333,18 +333,13 @@ class Posts(UserBlocking) :
 			Field('posts', 'title'),
 			Field('posts', 'description'),
 			Field('users', 'handle'),
-			Field('users', 'display_name'),
 			Field('post_scores', 'upvotes'),
 			Field('post_scores', 'downvotes'),
-			Field('users', 'icon'),
 			Field('posts', 'rating'),
 			Field('posts', 'parent'),
 			Field('posts', 'created_on'),
 			Field('posts', 'updated_on'),
 			Field('posts', 'filename'),
-			Field('users', 'admin'),
-			Field('users', 'mod'),
-			Field('users', 'verified'),
 			Field('posts', 'media_type_id'),
 		).join(
 			Join(
@@ -393,28 +388,18 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'privacy': UserPrivacy.public,
-					'icon': row[7],
-					'verified': Verified.admin if row[13] else (
-						Verified.mod if row[14] else (
-							Verified.artist if row[15] else None
-						)
-					)
-				},
+				'user': row[3],
 				'score': Score(
-					up = row[5],
-					down = row[6],
-					total = row[5] + row[6],
-				) if row[5] is not None else None,
-				'rating': self._get_rating_map()[row[8]],
-				'parent': row[9],
-				'created': row[10],
-				'updated': row[11],
-				'filename': row[12],
-				'media_type': self._get_media_type_map()[row[16]],
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
+				) if row[4] is not None else None,
+				'rating': self._get_rating_map()[row[6]],
+				'parent': row[7],
+				'created': row[8],
+				'updated': row[9],
+				'filename': row[10],
+				'media_type': self._get_media_type_map()[row[11]],
 				'privacy': Privacy.public,
 				'tags': await tagService.postTags(row[0]),
 			}
@@ -505,20 +490,15 @@ class Posts(UserBlocking) :
 				posts.description,
 				posts.filename,
 				users.handle,
-				users.display_name,
+				users.user_id,
 				posts.created_on,
 				posts.updated_on,
 				posts.privacy_id,
 				posts.media_type_id,
-				users.user_id,
 				post_scores.upvotes,
 				post_scores.downvotes,
-				users.icon,
 				posts.rating,
 				posts.parent,
-				users.admin,
-				users.mod,
-				users.verified,
 				posts.post_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
@@ -528,41 +508,31 @@ class Posts(UserBlocking) :
 			WHERE posts.post_id = %s
 			""",
 			(post_id,),
-			fetch_all=True,
+			fetch_one=True,
 		)
 
 		if not data :
 			raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
 		return {
-			'post_id': data[0][18],
-			'title': data[0][0],
-			'description': data[0][1],
-			'user': {
-				'handle': data[0][3],
-				'name': data[0][4],
-				'privacy': UserPrivacy.public,
-				'icon': data[0][12],
-				'verified': Verified.admin if data[0][15] else (
-					Verified.mod if data[0][16] else (
-						Verified.artist if data[0][17] else None
-					)
-				)
-			},
+			'post_id': data[13],
+			'title': data[0],
+			'description': data[1],
+			'user': data[3],
 			'score': Score(
-				up = data[0][10],
-				down = data[0][11],
-				total = data[0][10] + data[0][11],
-			) if data[0][10] is not None else None,
-			'rating': self._get_rating_map()[data[0][13]],
-			'parent': data[0][14],
-			'privacy': self._get_privacy_map()[data[0][7]],
-			'created': data[0][5],
-			'updated': data[0][6],
-			'filename': data[0][2],
-			'media_type': self._get_media_type_map()[data[0][8]],
-			'user_id': data[0][9],
-			'tags': await tagService.postTags(data[0][18]),
+				up = data[9],
+				down = data[10],
+				total = data[9] + data[10],
+			) if data[9] is not None else None,
+			'rating': self._get_rating_map()[data[11]],
+			'parent': data[12],
+			'privacy': self._get_privacy_map()[data[7]],
+			'created': data[5],
+			'updated': data[6],
+			'filename': data[2],
+			'media_type': self._get_media_type_map()[data[8]],
+			'user_id': data[4],
+			'tags': await tagService.postTags(data[13]),
 		}
 
 
@@ -590,17 +560,12 @@ class Posts(UserBlocking) :
 				posts.title,
 				posts.description,
 				users.handle,
-				users.display_name,
-				users.icon,
 				post_scores.upvotes,
 				post_scores.downvotes,
 				posts.rating,
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
-				users.admin,
-				users.mod,
-				users.verified,
 				posts.media_type_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
@@ -626,27 +591,17 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'privacy': UserPrivacy.public,
-					'icon': row[5],
-					'verified': Verified.admin if row[12] else (
-						Verified.mod if row[13] else (
-							Verified.artist if row[14] else None
-						)
-					)
-				},
+				'user': row[3],
 				'score': Score(
-					up = row[6],
-					down = row[7],
-					total = row[6] + row[7],
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
 				),
-				'rating': self._get_rating_map()[row[8]],
-				'created': row[9],
-				'updated': row[10],
-				'filename': row[11],
-				'media_type': self._get_media_type_map()[row[15]],
+				'rating': self._get_rating_map()[row[6]],
+				'created': row[7],
+				'updated': row[8],
+				'filename': row[9],
+				'media_type': self._get_media_type_map()[row[10]],
 				'privacy': Privacy.public,
 				'tags': await tagService.postTags(row[0]),
 			}
@@ -680,18 +635,13 @@ class Posts(UserBlocking) :
 			Field('posts', 'title'),
 			Field('posts', 'description'),
 			Field('users', 'handle'),
-			Field('users', 'display_name'),
 			Field('post_scores', 'upvotes'),
 			Field('post_scores', 'downvotes'),
-			Field('users', 'icon'),
 			Field('posts', 'rating'),
 			Field('posts', 'parent'),
 			Field('posts', 'created_on'),
 			Field('posts', 'updated_on'),
 			Field('posts', 'filename'),
-			Field('users', 'admin'),
-			Field('users', 'mod'),
-			Field('users', 'verified'),
 			Field('posts', 'media_type_id'),
 			Field('post_votes', 'upvote'),
 		).join(
@@ -774,30 +724,19 @@ class Posts(UserBlocking) :
 				post_id = row[0],
 				title = row[1],
 				description = row[2],
-				user = UserPortable(
-					handle = row[3],
-					name = row[4],
-					privacy = UserPrivacy.public,
-					icon = row[7],
-					following = True,
-					verified = Verified.admin if row[13] else (
-						Verified.mod if row[14] else (
-							Verified.artist if row[15] else None
-						)
-					)
-				),
+				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
 				score = Score(
-					up = row[5],
-					down = row[6],
-					total = row[5] + row[6],
-					user_vote = 0 if row[17] is None else (1 if row[17] else -1)
-				) if row[5] is not None else None,
-				rating = self._get_rating_map()[row[8]],
-				parent = row[9],
-				created = row[10],
-				updated = row[11],
-				filename = row[12],
-				media_type = self._get_media_type_map()[row[16]],
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
+					user_vote = 0 if row[12] is None else (1 if row[12] else -1)
+				) if row[4] is not None else None,
+				rating = self._get_rating_map()[row[6]],
+				parent = row[7],
+				created = row[8],
+				updated = row[9],
+				filename = row[10],
+				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
 				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
 			)
@@ -813,8 +752,6 @@ class Posts(UserBlocking) :
 				posts.title,
 				posts.description,
 				u2.handle,
-				u2.display_name,
-				u2.icon,
 				post_scores.upvotes,
 				post_scores.downvotes,
 				posts.rating,
@@ -822,9 +759,6 @@ class Posts(UserBlocking) :
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
-				u2.admin,
-				u2.mod,
-				u2.verified,
 				posts.media_type_id
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
@@ -852,29 +786,19 @@ class Posts(UserBlocking) :
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
-				'user': {
-					'handle': row[3],
-					'name': row[4],
-					'privacy': UserPrivacy.public,
-					'icon': row[5],
-					'verified': Verified.admin if row[13] else (
-						Verified.mod if row[14] else (
-							Verified.artist if row[15] else None
-						)
-					)
-				},
+				'user': row[3],
 				'score': Score(
-					up = row[6],
-					down = row[7],
-					total = row[6] + row[7],
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
 				),
-				'rating': self._get_rating_map()[row[8]],
-				'parent': row[9],
+				'rating': self._get_rating_map()[row[6]],
+				'parent': row[7],
 				'privacy': Privacy.public,
-				'created': row[10],
-				'updated': row[11],
-				'filename': row[12],
-				'media_type': self._get_media_type_map()[row[16]],
+				'created': row[8],
+				'updated': row[9],
+				'filename': row[10],
+				'media_type': self._get_media_type_map()[row[11]],
 				'tags': await tagService.postTags(row[0]),
 			}
 			for row in data
@@ -907,8 +831,6 @@ class Posts(UserBlocking) :
 			Field('posts', 'title'),
 			Field('posts', 'description'),
 			Field('users', 'handle'),
-			Field('users', 'display_name'),
-			Field('users', 'icon'),
 			Field('post_scores', 'upvotes'),
 			Field('post_scores', 'downvotes'),
 			Field('posts', 'rating'),
@@ -916,9 +838,6 @@ class Posts(UserBlocking) :
 			Field('posts', 'created_on'),
 			Field('posts', 'updated_on'),
 			Field('posts', 'filename'),
-			Field('users', 'admin'),
-			Field('users', 'mod'),
-			Field('users', 'verified'),
 			Field('posts', 'privacy_id'),
 			Field('posts', 'media_type_id'),
 		).join(
@@ -976,30 +895,19 @@ class Posts(UserBlocking) :
 				post_id = row[0],
 				title = row[1],
 				description = row[2],
-				user = UserPortable(
-					handle = row[3],
-					name = row[4],
-					privacy = UserPrivacy.public,
-					icon = row[5],
-					following = False,
-					verified = Verified.admin if row[13] else (
-						Verified.mod if row[14] else (
-							Verified.artist if row[15] else None
-						)
-					)
-				),
+				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
 				score = Score(
-					up = row[6],
-					down = row[7],
-					total = row[6] + row[7],
-				) if row[6] is not None else None,
-				rating = self._get_rating_map()[row[8]],
-				parent = row[9],
-				privacy = self._get_privacy_map()[row[16]],
-				created = row[10],
-				updated = row[11],
-				filename = row[12],
-				media_type = self._get_media_type_map()[row[17]],
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
+				) if row[4] is not None else None,
+				rating = self._get_rating_map()[row[6]],
+				parent = row[7],
+				privacy = self._get_privacy_map()[row[11]],
+				created = row[8],
+				updated = row[9],
+				filename = row[10],
+				media_type = self._get_media_type_map()[row[12]],
 				blocked = False,
 			)
 			for row in data
