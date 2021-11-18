@@ -826,7 +826,7 @@ class Posts(UserBlocking) :
 			Where(
 				Field('posts', 'created_on'),
 				Operator.greater_than_equal_to,
-				now - timedelta(days=1),
+				Value(now - timedelta(days=1)),
 			),
 		).group(
 			Field('posts', 'post_id'),
