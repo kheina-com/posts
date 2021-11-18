@@ -15,6 +15,7 @@ from kh_common.datetime import datetime
 from kh_common.gateway import Gateway
 from collections import defaultdict
 from kh_common.auth import KhUser
+from datetime import timedelta
 from copy import copy
 from tags import Tags
 
@@ -825,7 +826,7 @@ class Posts(UserBlocking) :
 			Where(
 				Field('posts', 'created_on'),
 				Operator.greater_than_equal_to,
-				now - datetime.timedelta(days=1),
+				now - timedelta(days=1),
 			),
 		).group(
 			Field('posts', 'post_id'),
