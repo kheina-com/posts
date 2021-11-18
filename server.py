@@ -90,7 +90,10 @@ async def v1Rss(req: Request) :
 		media_type='application/xml',
 		content=RssFeed.format(
 			description=f'RSS feed timeline for @{user.handle}',
-			pub_date=max(map(lambda post : post.updated, timeline)).strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
+			pub_date=(
+				max(map(lambda post : post.updated, timeline))
+				if timeline else retrieved
+			).strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
 			last_build_date=retrieved.strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
 			items='\n'.join([
 				RssItem.format(
