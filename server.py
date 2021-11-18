@@ -1,4 +1,4 @@
-from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, RssFeed, RssItem, RssTitle, RssDescription, RssMedia, Score, TimelineRequest, VoteRequest
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, RssDateFormat, RssFeed, RssItem, RssTitle, RssDescription, RssMedia, Score, TimelineRequest, VoteRequest
 from kh_common.server import Request, Response, ServerApp
 from kh_common.config.constants import users_host
 from kh_common.backblaze import B2Interface
@@ -93,15 +93,15 @@ async def v1Rss(req: Request) :
 			pub_date=(
 				max(map(lambda post : post.updated, timeline))
 				if timeline else retrieved
-			).strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
-			last_build_date=retrieved.strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
+			).strftime(RssDateFormat),
+			last_build_date=retrieved.strftime(RssDateFormat),
 			items='\n'.join([
 				RssItem.format(
 					title=RssTitle.format(escape(post.title)) if post.title else '',
 					link=f'https://dev.kheina.com/p/{post.post_id}',
 					description=RssDescription.format(escape(post.description)) if post.description else '',
 					user=f'https://dev.kheina.com/{post.user.handle}',
-					created=post.created.strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
+					created=post.created.strftime(RssDateFormat),
 					media=await media[post.post_id] if post.filename else '',
 					post_id=post.post_id,
 				) for post in timeline
