@@ -84,10 +84,12 @@ async def v1Rss(req: Request) :
 		if post.filename :
 			media[post.post_id] = ensure_future(get_post_media(post))
 
+	user = await user
+
 	return Response(
 		media_type='application/xml',
 		content=RssFeed.format(
-			description=f'RSS feed timeline for @{(await user).handle}',
+			description=f'RSS feed timeline for @{user.handle}',
 			pub_date=max(map(lambda post : post.updated, timeline)).strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
 			last_build_date=retrieved.strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
 			items='\n'.join([
