@@ -111,3 +111,6 @@ RssDescription = '\n<description>{}</description>'
 
 
 RssMedia = '\n<enclosure url="{url}" length="{length}" type="{mime_type}"/>'
+
+
+RssDateFormat = '%a, %d %b %Y %H:%M:%S.%f %Z'
