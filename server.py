@@ -1,11 +1,20 @@
-from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, Score, TimelineRequest, VoteRequest
-from kh_common.server import JsonResponse, NoContentResponse, Request, ServerApp
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, RssFeed, RssItem, RssTitle, RssDescription, RssMedia, Score, TimelineRequest, VoteRequest
+from kh_common.server import Request, Response, ServerApp
+from kh_common.config.constants import users_host
+from kh_common.backblaze import B2Interface
+from kh_common.models.user import User
+from kh_common.gateway import Gateway
+from asyncio import ensure_future
+from urllib.parse import quote
 from typing import List
 from posts import Posts
+from html import escape
 
 
 app = ServerApp(auth_required=False)
+b2 = B2Interface()
 posts = Posts()
+UsersService = Gateway(users_host + '/v1/fetch_self', User)
 
 
 @app.on_event('shutdown')
@@ -17,8 +26,8 @@ async def shutdown() :
 async def v1Vote(req: Request, body: VoteRequest) -> Score :
 	await req.user.authenticated()
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
-
 	return posts.vote(req.user, body.post_id, vote)
+
 
 @app.post('/v1/fetch_posts', responses={ 200: { 'model': List[Post] } })
 async def v1FetchPosts(req: Request, body: FetchPostsRequest) -> List[Post] :
@@ -50,6 +59,50 @@ async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) -> List[Post] :
 async def v1TimelinePosts(req: Request, body: TimelineRequest) -> List[Post] :
 	await req.user.authenticated()
 	return await posts.timelinePosts(req.user, body.count, body.page)
+
+
+async def get_post_media(post: Post) :
+	file_info = await b2.b2_get_file_info(post.post_id, post.filename)
+	return RssMedia.format(
+		url=f'https://cdn.kheina.com/file/kheina-content/{post.post_id}/{escape(quote(post.filename))}',
+		mime_type=file_info['contentType'],
+		length=file_info['contentLength'],
+	)
+
+
+@app.get('/v1/feed.rss')
+async def v1Rss(req: Request) :
+	await req.user.authenticated()
+
+	timeline = ensure_future(posts.RssFeedPosts(req.user))
+	user = ensure_future(UsersService(auth=req.user.token.token_string))
+
+	retrieved, timeline = await timeline
+	media = { }
+
+	for post in timeline :
+		if post.filename :
+			media[post.post_id] = ensure_future(get_post_media(post))
+
+	return Response(
+		media_type='application/xml',
+		content=RssFeed.format(
+			description=f'RSS feed timeline for @{(await user).handle}',
+			pub_date=max(map(lambda post : post.updated, timeline)).strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
+			last_build_date=retrieved.strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
+			items='\n'.join([
+				RssItem.format(
+					title=RssTitle.format(escape(post.title)) if post.title else '',
+					link=f'https://dev.kheina.com/p/{post.post_id}',
+					description=RssDescription.format(escape(post.description)) if post.description else '',
+					user=f'https://dev.kheina.com/{post.user.handle}',
+					created=post.created.strftime('%a, %d %b %Y %H:%M:%S.%f %Z'),
+					media=await media[post.post_id] if post.filename else '',
+					post_id=post.post_id,
+				) for post in timeline
+			]),
+		),
+	)
 
 
 if __name__ == '__main__' :

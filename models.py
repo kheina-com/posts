@@ -1,5 +1,7 @@
+from kh_common.config.constants import Environment, environment
 from kh_common.models.user import UserPortable
 from kh_common.models.privacy import Privacy
+from kh_common.config.repo import short_hash
 from kh_common.models.rating import Rating
 from typing import List, Optional, Union
 from pydantic import BaseModel
@@ -71,3 +73,41 @@ class Post(BaseModel) :
 	filename: Optional[str]
 	media_type: Optional[MediaType]
 	blocked: bool
+
+
+RssFeed = f"""<rss version="2.0">
+<channel>
+<title>Timeline | kheina.com</title>
+<link>{'https://dev.kheina.com/timeline' if environment != Environment.prod else 'https://kheina.com/timeline'}</link>
+<description>{{description}}</description>
+<language>en-us</language>
+<pubDate>{{pub_date}}</pubDate>
+<lastBuildDate>{{last_build_date}}</lastBuildDate>
+<docs>https://www.rssboard.org/rss-specification</docs>
+<generator>kheina.com - posts v.{short_hash}</generator>
+<image>
+<url>https://cdn.kheina.com/file/kheina-content/favicon.png</url>
+<title>Timeline | kheina.com</title>
+<link>{'https://dev.kheina.com/timeline' if environment != Environment.prod else 'https://kheina.com/timeline'}</link>
+</image>
+<ttl>1440</ttl>
+{{items}}
+</channel>
+</rss>"""
+
+
+RssItem = """<item>{title}
+<link>{link}</link>{description}
+<author>{user}</author>
+<pubDate>{created}</pubDate>{media}
+<guid>{post_id}</guid>
+</item>"""
+
+
+RssTitle = '\n<title>{}</title>'
+
+
+RssDescription = '\n<description>{}</description>'
+
+
+RssMedia = '\n<enclosure url="{url}" length="{length}" type="{mime_type}"/>'

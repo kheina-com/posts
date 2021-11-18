@@ -11,6 +11,7 @@ from asyncio import ensure_future, Task, wait
 from kh_common.blocking import UserBlocking
 from kh_common.models.rating import Rating
 from typing import List, Set, Tuple, Union
+from kh_common.datetime import datetime
 from kh_common.gateway import Gateway
 from collections import defaultdict
 from kh_common.auth import KhUser
@@ -720,6 +721,128 @@ class Posts(UserBlocking) :
 		data = self.query(query, fetch_all=True)
 
 		return [
+			Post(
+				post_id = row[0],
+				title = row[1],
+				description = row[2],
+				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
+				score = Score(
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
+					user_vote = 0 if row[12] is None else (1 if row[12] else -1)
+				) if row[4] is not None else None,
+				rating = self._get_rating_map()[row[6]],
+				parent = row[7],
+				created = row[8],
+				updated = row[9],
+				filename = row[10],
+				media_type = self._get_media_type_map()[row[11]],
+				privacy = Privacy.public,
+				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
+			)
+			for row in data
+		]
+
+
+	@ArgsCache(10)
+	async def RssFeedPosts(self, user: KhUser) :
+		now = datetime.now()
+
+		query = Query(
+			Table('kheina.public.posts')
+		).select(
+			Field('posts', 'post_id'),
+			Field('posts', 'title'),
+			Field('posts', 'description'),
+			Field('users', 'handle'),
+			Field('post_scores', 'upvotes'),
+			Field('post_scores', 'downvotes'),
+			Field('posts', 'rating'),
+			Field('posts', 'parent'),
+			Field('posts', 'created_on'),
+			Field('posts', 'updated_on'),
+			Field('posts', 'filename'),
+			Field('posts', 'media_type_id'),
+			Field('post_votes', 'upvote'),
+		).join(
+			Join(
+				JoinType.inner,
+				Table('kheina.public.following'),
+			).where(
+				Where(
+					Field('following', 'user_id'),
+					Operator.equal,
+					Value(user.user_id),
+				),
+				Where(
+					Field('following', 'follows'),
+					Operator.equal,
+					Field('posts', 'uploader'),
+				),
+			),
+			Join(
+				JoinType.inner,
+				Table('kheina.public.post_scores'),
+			).where(
+				Where(
+					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+			Join(
+				JoinType.inner,
+				Table('kheina.public.users'),
+			).where(
+				Where(
+					Field('users', 'user_id'),
+					Operator.equal,
+					Field('posts', 'uploader'),
+				),
+			),
+			Join(
+				JoinType.left,
+				Table('kheina.public.post_votes'),
+			).where(
+				Where(
+					Field('post_votes', 'user_id'),
+					Operator.equal,
+					Field('following', 'user_id'),
+				),
+				Where(
+					Field('post_votes', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+		).where(
+			Where(
+				Field('posts', 'privacy_id'),
+				Operator.equal,
+				"privacy_to_id('public')"
+			),
+			Where(
+				Field('posts', 'created_on'),
+				Operator.greater_than_equal_to,
+				now - datetime.timedelta(days=1),
+			),
+		).group(
+			Field('posts', 'post_id'),
+			Field('post_scores', 'post_id'),
+			Field('users', 'user_id'),
+			Field('post_votes', 'post_id'),
+			Field('post_votes', 'user_id'),
+		).order(
+			Field('posts', 'created_on'),
+			Order.descending_nulls_last,
+		)
+
+		data = ensure_future(self.query_async(query, fetch_all=True))
+		blocked_tags = self.user_blocked_tags(user.user_id)
+		data = await data
+
+		return now, [
 			Post(
 				post_id = row[0],
 				title = row[1],
