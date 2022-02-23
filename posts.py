@@ -1,9 +1,9 @@
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
+from models import MediaType, Post, PostSize, PostSort, Score
 from kh_common.models.privacy import Privacy, UserPrivacy
 from kh_common.caching import ArgsCache, SimpleCache
-from models import MediaType, Post, PostSort, Score
 from kh_common.config.constants import users_host
 from kh_common.models.verified import Verified
 from kh_common.models.user import UserPortable
@@ -318,16 +318,16 @@ class Posts(UserBlocking) :
 		if sort in { PostSort.new, PostSort.old } :
 			query.order(
 				Field('posts', 'created_on'),
-				Order.descending_nulls_last if sort == PostSort.new else Order.ascending_nulls_last,
+				Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
 			)
 
 		else :
 			query.order(
 				Field('post_scores', sort.name),
-				Order.descending_nulls_last,
+				Order.descending_nulls_first,
 			).order(
 				Field('posts', 'created_on'),
-				Order.descending_nulls_last,
+				Order.descending_nulls_first,
 			)
 
 		query.select(
@@ -343,6 +343,8 @@ class Posts(UserBlocking) :
 			Field('posts', 'updated_on'),
 			Field('posts', 'filename'),
 			Field('posts', 'media_type_id'),
+			Field('posts', 'width'),
+			Field('posts', 'height'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -404,6 +406,7 @@ class Posts(UserBlocking) :
 				'media_type': self._get_media_type_map()[row[11]],
 				'privacy': Privacy.public,
 				'tags': await tagService.postTags(row[0]),
+				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
 			}
 			for row in data
 		]
@@ -501,7 +504,9 @@ class Posts(UserBlocking) :
 				post_scores.downvotes,
 				posts.rating,
 				posts.parent,
-				posts.post_id
+				posts.post_id,
+				posts.width,
+				posts.height
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -535,6 +540,7 @@ class Posts(UserBlocking) :
 			'media_type': self._get_media_type_map()[data[8]],
 			'user_id': data[4],
 			'tags': await tagService.postTags(data[13]),
+			'size': PostSize(width=data[14], height=data[15]) if data[14] and data[15] else None,
 		}
 
 
@@ -569,6 +575,8 @@ class Posts(UserBlocking) :
 				posts.updated_on,
 				posts.filename,
 				posts.media_type_id
+				posts.width,
+				posts.height
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -606,6 +614,7 @@ class Posts(UserBlocking) :
 				'media_type': self._get_media_type_map()[row[10]],
 				'privacy': Privacy.public,
 				'tags': await tagService.postTags(row[0]),
+				'size': PostSize(width=row[11], height=row[12]) if row[11] and row[12] else None,
 			}
 			for row in data
 		]
@@ -626,6 +635,7 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(10)
+	@HttpErrorHandler('retrieving timeline posts')
 	async def timelinePosts(self, user: KhUser, count: int, page: int) -> List[Post] :
 		self._validatePageNumber(page)
 		self._validateCount(count)
@@ -646,6 +656,8 @@ class Posts(UserBlocking) :
 			Field('posts', 'filename'),
 			Field('posts', 'media_type_id'),
 			Field('post_votes', 'upvote'),
+			Field('posts', 'width'),
+			Field('posts', 'height'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -711,7 +723,7 @@ class Posts(UserBlocking) :
 			Field('post_votes', 'user_id'),
 		).order(
 			Field('posts', 'created_on'),
-			Order.descending_nulls_last,
+			Order.descending_nulls_first,
 		).limit(
 			count,
 		).page(
@@ -741,12 +753,14 @@ class Posts(UserBlocking) :
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
 				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
+				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
 		]
 
 
 	@ArgsCache(10)
+	@HttpErrorHandler('generating RSS feed')
 	async def RssFeedPosts(self, user: KhUser) :
 		now = datetime.now()
 
@@ -766,6 +780,8 @@ class Posts(UserBlocking) :
 			Field('posts', 'filename'),
 			Field('posts', 'media_type_id'),
 			Field('post_votes', 'upvote'),
+			Field('posts', 'width'),
+			Field('posts', 'height'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -836,7 +852,7 @@ class Posts(UserBlocking) :
 			Field('post_votes', 'user_id'),
 		).order(
 			Field('posts', 'created_on'),
-			Order.descending_nulls_last,
+			Order.descending_nulls_first,
 		)
 
 		data = ensure_future(self.query_async(query, fetch_all=True))
@@ -863,6 +879,7 @@ class Posts(UserBlocking) :
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
 				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
+				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
 		]
@@ -883,7 +900,9 @@ class Posts(UserBlocking) :
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
-				posts.media_type_id
+				posts.media_type_id,
+				posts.width,
+				posts.height
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
@@ -924,6 +943,7 @@ class Posts(UserBlocking) :
 				'filename': row[10],
 				'media_type': self._get_media_type_map()[row[11]],
 				'tags': await tagService.postTags(row[0]),
+				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
 			}
 			for row in data
 		]
@@ -964,6 +984,8 @@ class Posts(UserBlocking) :
 			Field('posts', 'filename'),
 			Field('posts', 'privacy_id'),
 			Field('posts', 'media_type_id'),
+			Field('posts', 'width'),
+			Field('posts', 'height'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -1000,16 +1022,16 @@ class Posts(UserBlocking) :
 		if sort in { PostSort.new, PostSort.old } :
 			query.order(
 				Field('posts', 'created_on'),
-				Order.descending_nulls_last if sort == PostSort.new else Order.ascending_nulls_last,
+				Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
 			)
 
 		else :
 			query.order(
 				Field('post_scores', sort.name),
-				Order.descending_nulls_last,
+				Order.descending_nulls_first,
 			).order(
 				Field('posts', 'created_on'),
-				Order.descending_nulls_last,
+				Order.descending_nulls_first,
 			)
 
 		data = self.query(query, fetch_all=True)
@@ -1033,6 +1055,7 @@ class Posts(UserBlocking) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[12]],
 				blocked = False,
+				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
 		]

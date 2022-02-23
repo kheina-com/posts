@@ -59,6 +59,11 @@ class MediaType(BaseModel) :
 	mime_type: str
 
 
+class PostSize(BaseModel) :
+	width: int
+	height: int
+
+
 class Post(BaseModel) :
 	post_id: str
 	title: Optional[str]
@@ -72,6 +77,7 @@ class Post(BaseModel) :
 	updated: Optional[datetime]
 	filename: Optional[str]
 	media_type: Optional[MediaType]
+	size: Optional[PostSize]
 	blocked: bool
 
 
