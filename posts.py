@@ -574,7 +574,7 @@ class Posts(UserBlocking) :
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
-				posts.media_type_id
+				posts.media_type_id,
 				posts.width,
 				posts.height
 			FROM kheina.public.posts
