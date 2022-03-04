@@ -338,18 +338,18 @@ class Posts(UserBlocking) :
 			if include_users :
 				query.where(
 					Where(
-						Field('users', 'handle'),
+						Field('users', 'lower(handle)'),
 						Operator.equal,
-						Value(include_users[0]),
+						Value(include_users[0], 'lower'),
 					),
 				)
 
 			if exclude_users :
 				query.where(
 					Where(
-						Field('users', 'handle'),
+						Field('users', 'lower(handle)'),
 						Operator.not_equal,
-						Value(exclude_users, 'any'),
+						Value(exclude_users, 'any'),  # TODO: add lower + any
 					),
 				)
 
@@ -488,6 +488,7 @@ class Posts(UserBlocking) :
 			}
 			for row in data
 		]
+
 
 	@HttpErrorHandler('fetching posts')
 	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
