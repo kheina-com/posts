@@ -207,6 +207,16 @@ class Posts(UserBlocking) :
 				).join(
 					Join(
 						JoinType.inner,
+						Table('kheina.public.users'),
+					).where(
+						Where(
+							Field('users', 'user_id'),
+							Operator.equal,
+							Field('posts', 'uploader'),
+						),
+					),
+					Join(
+						JoinType.inner,
 						Table('kheina.public.tag_post'),
 					).where(
 						Where(
@@ -238,9 +248,47 @@ class Posts(UserBlocking) :
 					),
 				)
 
+			elif include_users :
+				query = Query(
+					Table('kheina.public.users')
+				).join(
+					Join(
+						JoinType.inner,
+						Table('kheina.public.posts'),
+					).where(
+						Where(
+							Field('posts', 'uploader'),
+							Operator.equal,
+							Field('users', 'user_id'),
+						),
+						Where(
+							Field('posts', 'privacy_id'),
+							Operator.equal,
+							"privacy_to_id('public')",
+						),
+					),
+				).where(
+					Where(
+						Field('posts', 'privacy_id'),
+						Operator.equal,
+						"privacy_to_id('public')",
+					),
+				)
+
 			else :
 				query = Query(
 					Table('kheina.public.posts')
+				).join(
+					Join(
+						JoinType.inner,
+						Table('kheina.public.users'),
+					).where(
+						Where(
+							Field('users', 'user_id'),
+							Operator.equal,
+							Field('posts', 'uploader'),
+						),
+					),
 				).where(
 					Where(
 						Field('posts', 'privacy_id'),
@@ -342,6 +390,17 @@ class Posts(UserBlocking) :
 		else :
 			query = Query(
 				Table('kheina.public.posts')
+			).join(
+				Join(
+					JoinType.inner,
+					Table('kheina.public.users'),
+				).where(
+					Where(
+						Field('users', 'user_id'),
+						Operator.equal,
+						Field('posts', 'uploader'),
+					),
+				),
 			).where(
 				Where(
 					Field('posts', 'privacy_id'),
@@ -389,16 +448,6 @@ class Posts(UserBlocking) :
 					Field('post_scores', 'post_id'),
 					Operator.equal,
 					Field('posts', 'post_id'),
-				),
-			),
-			Join(
-				JoinType.inner,
-				Table('kheina.public.users'),
-			).where(
-				Where(
-					Field('users', 'user_id'),
-					Operator.equal,
-					Field('posts', 'uploader'),
 				),
 			),
 		).group(
