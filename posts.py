@@ -207,6 +207,21 @@ class Posts(UserBlocking) :
 				).join(
 					Join(
 						JoinType.inner,
+						Table('kheina.public.posts'),
+					).where(
+						Where(
+							Field('posts', 'post_id'),
+							Operator.equal,
+							Field('tag_post', 'post_id'),
+						),
+						Where(
+							Field('posts', 'privacy_id'),
+							Operator.equal,
+							"privacy_to_id('public')",
+						),
+					),
+					Join(
+						JoinType.inner,
 						Table('kheina.public.users'),
 					).where(
 						Where(
@@ -223,21 +238,6 @@ class Posts(UserBlocking) :
 							Field('tag_post', 'tag_id'),
 							Operator.equal,
 							Field('tags', 'tag_id'),
-						),
-					),
-					Join(
-						JoinType.inner,
-						Table('kheina.public.posts'),
-					).where(
-						Where(
-							Field('posts', 'post_id'),
-							Operator.equal,
-							Field('tag_post', 'post_id'),
-						),
-						Where(
-							Field('posts', 'privacy_id'),
-							Operator.equal,
-							"privacy_to_id('public')",
 						),
 					),
 				).having(
@@ -266,12 +266,6 @@ class Posts(UserBlocking) :
 							Operator.equal,
 							"privacy_to_id('public')",
 						),
-					),
-				).where(
-					Where(
-						Field('posts', 'privacy_id'),
-						Operator.equal,
-						"privacy_to_id('public')",
 					),
 				)
 
