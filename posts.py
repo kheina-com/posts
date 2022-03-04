@@ -2,15 +2,14 @@ from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, T
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from models import MediaType, Post, PostSize, PostSort, Score
-from kh_common.models.privacy import Privacy, UserPrivacy
 from kh_common.caching import ArgsCache, SimpleCache
+from typing import List, Set, Optional, Tuple, Union
 from kh_common.config.constants import users_host
-from kh_common.models.verified import Verified
 from kh_common.models.user import UserPortable
 from asyncio import ensure_future, Task, wait
+from kh_common.models.privacy import Privacy
 from kh_common.blocking import UserBlocking
 from kh_common.models.rating import Rating
-from typing import List, Set, Tuple, Union
 from kh_common.datetime import datetime
 from kh_common.gateway import Gateway
 from collections import defaultdict
@@ -139,6 +138,33 @@ class Posts(UserBlocking) :
 
 
 	@ArgsCache(60)
+	async def _count_posts_by_tag(self, tag: Optional[str]) :
+		if tag :
+			return await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.tags
+					INNER JOIN kheina.public.tag_post
+						ON tags.tag_id = tag_post.tag_id
+					INNER JOIN kheina.public.posts
+						ON tag_post.post_id = posts.post_id
+							AND posts.privacy_id = privacy_to_id('public')
+				WHERE tags.tag = %s;
+				""",
+				(tag,),
+				fetch_one=True,
+			)
+
+		else :
+			return await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.posts
+				WHERE posts.privacy_id = privacy_to_id('public');
+				""",
+				fetch_one=True,
+			)
+
+
+	@ArgsCache(60)
 	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
 		idk = { }
 
@@ -207,15 +233,13 @@ class Posts(UserBlocking) :
 				Where(
 					Field('tags', 'deprecated'),
 					Operator.equal,
-					False,					
+					False,
 				),
 			).having(
 				Where(
 					Value(1, 'count'),
 					Operator.equal,
-					Value(
-						len(include_tags) + len(include_users) + int(bool(include_rating))
-					),
+					Value(len(include_tags)),
 				),
 			)
 
