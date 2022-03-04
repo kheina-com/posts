@@ -201,50 +201,61 @@ class Posts(UserBlocking) :
 			if len(include_rating) > 1 :
 				raise BadRequest('can only search for posts from, at most, one rating at a time.')
 
-			query = Query(
-				Table('kheina.public.tags')
-			).join(
-				Join(
-					JoinType.inner,
-					Table('kheina.public.tag_post'),
-				).where(
-					Where(
-						Field('tag_post', 'tag_id'),
-						Operator.equal,
-						Field('tags', 'tag_id'),
+			if include_tags or exclude_tags :
+				query = Query(
+					Table('kheina.public.tags')
+				).join(
+					Join(
+						JoinType.inner,
+						Table('kheina.public.tag_post'),
+					).where(
+						Where(
+							Field('tag_post', 'tag_id'),
+							Operator.equal,
+							Field('tags', 'tag_id'),
+						),
 					),
-				),
-				Join(
-					JoinType.inner,
-					Table('kheina.public.posts'),
-				).where(
-					Where(
-						Field('posts', 'post_id'),
-						Operator.equal,
-						Field('tag_post', 'post_id'),
+					Join(
+						JoinType.inner,
+						Table('kheina.public.posts'),
+					).where(
+						Where(
+							Field('posts', 'post_id'),
+							Operator.equal,
+							Field('tag_post', 'post_id'),
+						),
+						Where(
+							Field('posts', 'privacy_id'),
+							Operator.equal,
+							"privacy_to_id('public')",
+						),
 					),
+				).having(
+					Where(
+						Value(1, 'count'),
+						Operator.equal,
+						Value(len(include_tags)),
+					),
+				)
+
+			else :
+				query = Query(
+					Table('kheina.public.posts')
+				).where(
 					Where(
 						Field('posts', 'privacy_id'),
 						Operator.equal,
 						"privacy_to_id('public')",
 					),
-				),
-			).where(
-				Where(
-					Field('tags', 'deprecated'),
-					Operator.equal,
-					False,
-				),
-			).having(
-				Where(
-					Value(1, 'count'),
-					Operator.equal,
-					Value(len(include_tags)),
-				),
-			)
+				)
 
 			if include_tags :
 				query.where(
+					Where(
+						Field('tags', 'deprecated'),
+						Operator.equal,
+						False,
+					),
 					Where(
 						Field('tags', 'tag'),
 						Operator.equal,
