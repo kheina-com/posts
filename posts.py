@@ -338,7 +338,7 @@ class Posts(UserBlocking) :
 			if include_users :
 				query.where(
 					Where(
-						Field('users', 'lower(handle)'),
+						Field('lower(users', 'handle)'),
 						Operator.equal,
 						Value(include_users[0], 'lower'),
 					),
@@ -347,7 +347,7 @@ class Posts(UserBlocking) :
 			if exclude_users :
 				query.where(
 					Where(
-						Field('users', 'lower(handle)'),
+						Field('lower(users', 'handle)'),
 						Operator.not_equal,
 						Value(exclude_users, 'any'),  # TODO: add lower + any
 					),
