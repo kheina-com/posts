@@ -193,6 +193,13 @@ class Posts(UserBlocking) :
 					(exclude_rating if exclude else include_rating).append(tag)
 					continue
 
+				if tag.startswith('sort:') :
+					try :
+						sort = PostSort[tag[5:]]
+
+					except KeyError :
+						raise BadRequest(f'{tag[5:]} is not a valid sort method. valid methods: {list(PostSort.__members__.keys())}')
+
 				(exclude_tags if exclude else include_tags).append(tag)
 
 			if len(include_users) > 1 :
