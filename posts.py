@@ -444,6 +444,7 @@ class Posts(UserBlocking) :
 			Field('posts', 'media_type_id'),
 			Field('posts', 'width'),
 			Field('posts', 'height'),
+			Field('users', 'user_id'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -476,8 +477,10 @@ class Posts(UserBlocking) :
 
 		data = self.query(query, fetch_all=True)
 
-		return [
-			{
+		posts: list = []
+
+		for row in data :
+			post = {
 				'post_id': row[0],
 				'title': row[1],
 				'description': row[2],
@@ -489,15 +492,23 @@ class Posts(UserBlocking) :
 				) if row[4] is not None else None,
 				'rating': self._get_rating_map()[row[6]],
 				'parent': row[7],
+				'privacy': Privacy.public,
 				'created': row[8],
 				'updated': row[9],
 				'filename': row[10],
 				'media_type': self._get_media_type_map()[row[11]],
-				'privacy': Privacy.public,
-				'tags': await TagService.postTags(row[0]),
+				'user_id': row[14],
 				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
 			}
-			for row in data
+			posts.append(post)
+			KVS.put(row[0], post)
+
+		return [
+			{
+				**post,
+				'tags': await TagService.postTags(row[0]),
+			}
+			for post in posts
 		]
 
 
