@@ -1,8 +1,9 @@
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 from kh_common.scoring import confidence, controversial as calc_cont, hot as calc_hot
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
+from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from models import MediaType, Post, PostSize, PostSort, Score
-from kh_common.caching import ArgsCache, SimpleCache
+from kh_common.caching.key_value_store import KeyValueStore
 from typing import List, Set, Optional, Tuple, Union
 from kh_common.config.constants import users_host
 from kh_common.models.user import UserPortable
@@ -19,8 +20,9 @@ from copy import copy
 from tags import Tags
 
 
-tagService = Tags()
-UsersService = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
+TagService: Tags = Tags()
+UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
+KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 
 
 class Posts(UserBlocking) :
@@ -58,7 +60,7 @@ class Posts(UserBlocking) :
 			blocked = (
 				bool(post['tags'] & self.user_blocked_tags(user.user_id))
 				if 'tags' in post else
-				bool(await tagService.postTags(post['post_id']) & self.user_blocked_tags(user.user_id))
+				bool(await TagService.postTags(post['post_id']) & self.user_blocked_tags(user.user_id))
 			),
 		)
 
@@ -492,7 +494,7 @@ class Posts(UserBlocking) :
 				'filename': row[10],
 				'media_type': self._get_media_type_map()[row[11]],
 				'privacy': Privacy.public,
-				'tags': await tagService.postTags(row[0]),
+				'tags': await TagService.postTags(row[0]),
 				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
 			}
 			for row in data
@@ -527,6 +529,7 @@ class Posts(UserBlocking) :
 	@SimpleCache(600)
 	def _rating_to_id(self) :
 		return { v.name: k for k, v in self._get_rating_map().items() }
+
 
 	@SimpleCache(600)
 	def _get_privacy_map(self) :
@@ -575,7 +578,7 @@ class Posts(UserBlocking) :
 		return set(map(lambda x : x[0].lower(), data))
 
 
-	@ArgsCache(5)
+	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=KVS)
 	async def _get_post(self, post_id: str) :
 		data = self.query("""
 			SELECT
@@ -627,18 +630,19 @@ class Posts(UserBlocking) :
 			'filename': data[2],
 			'media_type': self._get_media_type_map()[data[8]],
 			'user_id': data[4],
-			'tags': await tagService.postTags(data[13]),
 			'size': PostSize(width=data[14], height=data[15]) if data[14] and data[15] else None,
 		}
 
 
 	@HttpErrorHandler('retrieving post')
-	async def getPost(self, user: KhUser, post_id: str) :
+	async def getPost(self, user: KhUser, post_id: str) -> Post :
 		self._validatePostId(post_id)
 
 		post = ensure_future(self._get_post(post_id))
-		post = await post
+		tags = ensure_future(TagService.postTags(post_id))
+		post = await post	
 		uploader = post.pop('user_id')
+		post['tags'] = await tags
 
 		user_is_uploader = uploader == user.user_id and await user.authenticated(raise_error=False)
 
@@ -701,7 +705,7 @@ class Posts(UserBlocking) :
 				'filename': row[9],
 				'media_type': self._get_media_type_map()[row[10]],
 				'privacy': Privacy.public,
-				'tags': await tagService.postTags(row[0]),
+				'tags': await TagService.postTags(row[0]),
 				'size': PostSize(width=row[11], height=row[12]) if row[11] and row[12] else None,
 			}
 			for row in data
@@ -840,7 +844,7 @@ class Posts(UserBlocking) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
+				blocked = bool(await TagService.postTags(row[0]) & blocked_tags),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -966,7 +970,7 @@ class Posts(UserBlocking) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = bool(await tagService.postTags(row[0]) & blocked_tags),
+				blocked = bool(await TagService.postTags(row[0]) & blocked_tags),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -1030,7 +1034,7 @@ class Posts(UserBlocking) :
 				'updated': row[9],
 				'filename': row[10],
 				'media_type': self._get_media_type_map()[row[11]],
-				'tags': await tagService.postTags(row[0]),
+				'tags': await TagService.postTags(row[0]),
 				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
 			}
 			for row in data
