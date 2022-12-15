@@ -92,7 +92,7 @@ RssFeed = f"""<rss version="2.0">
 <docs>https://www.rssboard.org/rss-specification</docs>
 <generator>kheina.com - posts v.{short_hash}</generator>
 <image>
-<url>https://cdn.kheina.com/file/kheina-content/favicon.png</url>
+<url>https://cdn.fuzz.ly/favicon.png</url>
 <title>Timeline | kheina.com</title>
 <link>{'https://dev.kheina.com/timeline' if environment != Environment.prod else 'https://kheina.com/timeline'}</link>
 </image>

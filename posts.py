@@ -23,6 +23,7 @@ from tags import Tags
 TagService: Tags = Tags()
 UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
+VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
 
 
 class Posts(UserBlocking) :
