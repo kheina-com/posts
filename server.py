@@ -73,7 +73,7 @@ async def v1FetchMyPosts(req: Request, body: BaseFetchRequest) -> List[Post] :
 	return await posts.fetchOwnPosts(req.user, body.sort, body.count, body.page)
 
 
-@app.post('/v1/fetch_drafts', responses={ 200: { 'model': List[Post] } })
+@app.get('/v1/fetch_drafts', responses={ 200: { 'model': List[Post] } })
 async def v1FetchDrafts(req: Request) -> List[Post] :
 	await req.user.authenticated()
 	return await posts.fetchDrafts(req.user)
