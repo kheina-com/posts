@@ -527,7 +527,7 @@ class Posts(UserBlocking) :
 		return list(map(Task.result, posts))
 
 
-	@SimpleCache(600)
+	@SimpleCache(float('inf'))
 	def _get_rating_map(self) :
 		data = self.query("""
 			SELECT rating_id, rating
@@ -538,12 +538,12 @@ class Posts(UserBlocking) :
 		return { x[0]: Rating[x[1]] for x in data if x[1] in Rating.__members__ }
 
 
-	@SimpleCache(600)
+	@SimpleCache(float('inf'))
 	def _rating_to_id(self) :
 		return { v.name: k for k, v in self._get_rating_map().items() }
 
 
-	@SimpleCache(600)
+	@SimpleCache(float('inf'))
 	def _get_privacy_map(self) :
 		data = self.query("""
 			SELECT privacy_id, type
@@ -552,6 +552,11 @@ class Posts(UserBlocking) :
 			fetch_all=True,
 		)
 		return { x[0]: Privacy[x[1]] for x in data if x[1] in Privacy.__members__ }
+
+
+	@SimpleCache(float('inf'))
+	def _privacy_to_id(self) :
+		return { v: k for k, v in self._get_privacy_map().items() }
 
 
 	@SimpleCache(600)
@@ -1138,7 +1143,92 @@ class Posts(UserBlocking) :
 				Order.descending_nulls_first,
 			)
 
-		data = self.query(query, fetch_all=True)
+		data = await self.query_async(query, fetch_all=True)
+
+		return [
+			Post(
+				post_id = row[0],
+				title = row[1],
+				description = row[2],
+				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
+				score = Score(
+					up = row[4],
+					down = row[5],
+					total = row[4] + row[5],
+				) if row[4] is not None else None,
+				rating = self._get_rating_map()[row[6]],
+				parent = row[7],
+				privacy = self._get_privacy_map()[row[11]],
+				created = row[8],
+				updated = row[9],
+				filename = row[10],
+				media_type = self._get_media_type_map()[row[12]],
+				blocked = False,
+				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
+			)
+			for row in data
+		]
+
+
+	@HttpErrorHandler("retrieving user's own posts")
+	@ArgsCache(5)
+	async def fetchDrafts(self, user: KhUser) -> List[Post] :
+		query = Query(
+			Table('kheina.public.posts')
+		).select(
+			Field('posts', 'post_id'),
+			Field('posts', 'title'),
+			Field('posts', 'description'),
+			Field('users', 'handle'),
+			Field('post_scores', 'upvotes'),
+			Field('post_scores', 'downvotes'),
+			Field('posts', 'rating'),
+			Field('posts', 'parent'),
+			Field('posts', 'created_on'),
+			Field('posts', 'updated_on'),
+			Field('posts', 'filename'),
+			Field('posts', 'privacy_id'),
+			Field('posts', 'media_type_id'),
+			Field('posts', 'width'),
+			Field('posts', 'height'),
+		).join(
+			Join(
+				JoinType.inner,
+				Table('kheina.public.users'),
+			).where(
+				Where(
+					Field('posts', 'uploader'),
+					Operator.equal,
+					Field('users', 'user_id'),
+				),
+			),
+			Join(
+				JoinType.left,
+				Table('kheina.public.post_scores'),
+			).where(
+				Where(
+					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+		).where(
+			Where(
+				Field('posts', 'uploader'),
+				Operator.equal,
+				Value(user.user_id),				
+			),
+			Where(
+				Field('posts', 'privacy_id'),
+				Operator.equal,
+				Value(self._privacy_to_id(Privacy.draft)),				
+			),
+		).order(
+			Field('posts', 'created_on'),
+			Order.descending_nulls_first,
+		)
+
+		data = await self.query_async(query, fetch_all=True)
 
 		return [
 			Post(
