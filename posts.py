@@ -1221,7 +1221,7 @@ class Posts(UserBlocking) :
 			Where(
 				Field('posts', 'privacy_id'),
 				Operator.equal,
-				Value(self._privacy_to_id(Privacy.draft)),				
+				Value(self._privacy_to_id()[Privacy.draft]),				
 			),
 		).order(
 			Field('posts', 'created_on'),
