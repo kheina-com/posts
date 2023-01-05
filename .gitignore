@@ -2,20 +2,17 @@
 **/credentials.*
 **/credentials
 credentials
-**/notifier
-notifier
 
 # executables
-iqdb/iqdb
 **/*.o
 
 # config files
 .vscode
+.DS_Store
 
 # database files
 **/*.db
 **/*.sql
-databaseIDs.json
 
 # images
 **/*.jpg
@@ -24,37 +21,35 @@ databaseIDs.json
 **/*.ico
 **/*.svg
 
-# test files
-*test.*
-*test
-
 # python files
 **/__pycache__
 **/Pipfile
+**/.py*
 
-# text files, except a requirements file, should it exist
+# text files, except requirements files, should they exist
 *.log
 *.txt
 *.out
-!requirements.txt
-
-# old web files from original iqdb clone
-**/web
-
-# stats files
-stats.json
+!requirements*.txt
 
 # back ups of files hosted remotely
 **/backups
 
 # experimental things
-libparseform.so
-parseform.cpp
-parseform.py
-cf
+ignore*
 
 # grab template files
 !*template.*
 
 # grab ALL markdown files. These are all readmes, setups, and tutorials
 !**/*.md
+
+# pypi files
+**/build/*
+**/dist/*
+build
+dist
+*.egg-info
+
+# pytest files
+.coverage

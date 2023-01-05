@@ -1,8 +1,9 @@
-from aiohttp import ClientTimeout, request as async_request
-from kh_common.config.constants import tags_host
-from kh_common.utilities import flatten
+from aiohttp import ClientTimeout
+from aiohttp import request as async_request
 from kh_common.caching import ArgsCache
+from kh_common.config.constants import tags_host
 from kh_common.hashing import Hashable
+from kh_common.utilities import flatten
 
 
 class Tags(Hashable) :

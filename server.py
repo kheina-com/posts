@@ -1,14 +1,16 @@
-from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, RssDateFormat, RssFeed, RssItem, RssTitle, RssDescription, RssMedia, Score, TimelineRequest, VoteRequest
-from kh_common.server import Request, Response, ServerApp
-from kh_common.config.constants import users_host
-from kh_common.backblaze import B2Interface
-from kh_common.models.user import User
-from kh_common.gateway import Gateway
 from asyncio import ensure_future
-from urllib.parse import quote
-from typing import List
-from posts import Posts
 from html import escape
+from typing import List
+from urllib.parse import quote
+
+from kh_common.backblaze import B2Interface
+from kh_common.config.constants import users_host
+from kh_common.gateway import Gateway
+from kh_common.models.user import User
+from kh_common.server import Request, Response, ServerApp
+
+from fuzzly_posts.models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, Score, TimelineRequest, VoteRequest
+from posts import Posts
 
 
 app = ServerApp(
