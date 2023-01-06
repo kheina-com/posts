@@ -2,10 +2,11 @@ from asyncio import Task, ensure_future, wait
 from collections import defaultdict
 from copy import copy
 from datetime import timedelta
-from typing import List, Optional, Set, Tuple, Union
+from typing import Iterable, List, Optional, Set, Tuple, Union
 
+from fuzzly_configs import UserConfigGateway
+from fuzzly_configs.models import UserConfigResponse
 from kh_common.auth import KhUser
-from kh_common.blocking import UserBlocking
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.config.constants import users_host
@@ -18,8 +19,10 @@ from kh_common.models.user import UserPortable
 from kh_common.scoring import confidence
 from kh_common.scoring import controversial as calc_cont
 from kh_common.scoring import hot as calc_hot
+from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
+from fuzzly_posts.blocking import BlockTree
 from fuzzly_posts.models import MediaType, Post, PostSize, PostSort, Score
 from tags import Tags
 
@@ -30,7 +33,7 @@ KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
 
 
-class Posts(UserBlocking) :
+class Posts(SqlInterface) :
 
 	def _validatePostId(self, post_id: str) :
 		if len(post_id) != 8 :
@@ -52,6 +55,24 @@ class Posts(UserBlocking) :
 			raise BadRequest(f'the given count is invalid: {count}. count must be between 1 and 1000.', count=count)
 
 
+	@ArgsCache(60)
+	async def fetchBlockTree(user: KhUser) -> BlockTree :
+		# TODO: return underlying UserConfig here, once internal tokens are implemented
+		user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
+		tree: BlockTree = BlockTree()
+		tree.populate(user_config.blocked_tags)
+		return tree
+
+
+	async def isPostBlocked(user: KhUser, uploader: str, tags: Iterable[str]) -> bool :
+		block_tree: BlockTree = await Posts.fetchBlockTree(user)
+
+		tags: Set[str] = set(tags)
+		tags.add('@' + uploader)
+
+		return block_tree.blocked(tags)
+
+
 	async def _dict_to_post(self, post: dict, user: KhUser) -> Post :
 		post = copy(post)
 		uploader = post.pop('user')
@@ -63,9 +84,9 @@ class Posts(UserBlocking) :
 			**post,
 			user = await UsersService(handle=uploader, auth=user.token.token_string if user.token else None),
 			blocked = (
-				bool(post['tags'] & self.user_blocked_tags(user.user_id))
+				(await self.isPostBlocked(user, uploader, post['tags']))
 				if 'tags' in post else
-				bool(await TagService.postTags(post['post_id']) & self.user_blocked_tags(user.user_id))
+				(await self.isPostBlocked(user, uploader, await TagService.postTags(post['post_id'])))
 			),
 		)
 
@@ -843,7 +864,6 @@ class Posts(UserBlocking) :
 			page,
 		)
 
-		blocked_tags = self.user_blocked_tags(user.user_id)
 		data = self.query(query, fetch_all=True)
 
 		return [
@@ -865,7 +885,7 @@ class Posts(UserBlocking) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = bool(await TagService.postTags(row[0]) & blocked_tags),
+				blocked = await self.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -991,7 +1011,7 @@ class Posts(UserBlocking) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = bool(await TagService.postTags(row[0]) & blocked_tags),
+				blocked = await self.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data

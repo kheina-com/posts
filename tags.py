@@ -1,3 +1,5 @@
+from typing import List
+
 from aiohttp import ClientTimeout
 from aiohttp import request as async_request
 from kh_common.caching import ArgsCache
@@ -11,7 +13,7 @@ class Tags(Hashable) :
 	Timeout: int = 30
 
 	@ArgsCache(5)
-	async def postTags(self, post_id: str) :
+	async def postTags(self, post_id: str) -> List[str] :
 		async with async_request(
 			'GET',
 			f'{tags_host}/v1/fetch_tags/{post_id}',
@@ -20,6 +22,6 @@ class Tags(Hashable) :
 			data = await response.json()
 
 			if not data :
-				return set()
+				return []
 
-			return set(flatten(data))
+			return list(flatten(data))

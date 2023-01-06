@@ -16,7 +16,7 @@ req_regex: Pattern = re_compile(r'^requirements-(\w+).txt$')
 
 
 setup(
-	name='fuzzly_posts',
+	name='fuzzly-posts',
 	version=__version__,
 	description='posts library for fuzz.ly',
 	long_description=open('readme.md').read(),
