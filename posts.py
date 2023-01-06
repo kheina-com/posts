@@ -83,14 +83,6 @@ class Posts(SqlInterface) :
 		tags: List[str] = post['tags'] if 'tags' in post else (await TagService.postTags(post['post_id']))
 		blocked: bool = await Posts.isPostBlocked(user, uploader, tags)
 
-		self.logger.info({
-			'tree': await Posts.fetchBlockTree(user),
-			'post': post,
-			'uploader': uploader,
-			'tags': tags,
-			'blocked': blocked,
-		})
-
 		return Post(
 			**post,
 			user = await UsersService(handle=uploader, auth=user.token.token_string if user.token else None),
@@ -539,7 +531,7 @@ class Posts(SqlInterface) :
 		return [
 			{
 				**post,
-				'tags': await TagService.postTags(row[0]),
+				'tags': await TagService.postTags(post['post_id']),
 			}
 			for post in posts
 		]
