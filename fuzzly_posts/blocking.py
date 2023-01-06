@@ -54,11 +54,15 @@ class BlockTree :
 
 
 	def blocked(self, tags: Iterable[str]) -> bool :
+		if not self.match and not self.nomatch :
+			return False
+
 		self.tags = set(tags)
 		return self._blocked(self)
 
 
 	def _blocked(self, tree: 'BlockTree') -> bool :
+		# TODO: it really feels like there's a better way to do this check
 		if not tree.match and not tree.nomatch :
 			return True
 
