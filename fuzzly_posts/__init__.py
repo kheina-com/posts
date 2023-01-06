@@ -6,7 +6,7 @@ from kh_common.gateway import Gateway
 from fuzzly_posts.models import Post
 
 
-__version__: str = '0.0.4'
+__version__: str = '0.0.5'
 
 
 PostGateway: Gateway = Gateway(posts_host + '/v1/post/{post}', Post, 'GET')
