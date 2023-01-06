@@ -503,6 +503,7 @@ class Posts(SqlInterface) :
 		data = self.query(query, fetch_all=True)
 
 		posts: list = []
+		tags: Dict[str, Task[List[str]]] = { }
 
 		for row in data :
 			post = {
@@ -526,12 +527,13 @@ class Posts(SqlInterface) :
 				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
 			}
 			posts.append(post)
+			tags[row[0]] = ensure_future(TagService.postTags(post['post_id']))
 			KVS.put(row[0], post)
 
 		return [
 			{
 				**post,
-				'tags': await TagService.postTags(post['post_id']),
+				'tags': await tags[post['post_id']],
 			}
 			for post in posts
 		]
