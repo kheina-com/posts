@@ -56,7 +56,7 @@ class Posts(SqlInterface) :
 			raise BadRequest(f'the given count is invalid: {count}. count must be between 1 and 1000.', count=count)
 
 
-	# @ArgsCache(5)
+	@ArgsCache(5)
 	async def fetchBlockTree(user: KhUser) -> BlockTree :
 		if not user.token :
 			return DefaultBlockTree
