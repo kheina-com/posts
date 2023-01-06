@@ -64,7 +64,7 @@ class Posts(SqlInterface) :
 		# TODO: return underlying UserConfig here, once internal tokens are implemented
 		user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
 		tree: BlockTree = BlockTree()
-		tree.populate(user_config.blocked_tags)
+		tree.populate(user_config.blocked_tags or [])
 		return tree
 
 
