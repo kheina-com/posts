@@ -2,7 +2,7 @@ from asyncio import Task, ensure_future, wait
 from collections import defaultdict
 from copy import copy
 from datetime import timedelta
-from typing import Iterable, List, Optional, Set, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from fuzzly_configs import UserConfigGateway
 from fuzzly_configs.models import UserConfigResponse
