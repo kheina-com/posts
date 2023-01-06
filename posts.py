@@ -31,6 +31,7 @@ TagService: Tags = Tags()
 UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
+DefaultBlockTree: BlockTree = BlockTree()
 
 
 class Posts(SqlInterface) :
@@ -57,6 +58,9 @@ class Posts(SqlInterface) :
 
 	@ArgsCache(60)
 	async def fetchBlockTree(user: KhUser) -> BlockTree :
+		if not user.token :
+			return DefaultBlockTree
+
 		# TODO: return underlying UserConfig here, once internal tokens are implemented
 		user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
 		tree: BlockTree = BlockTree()
