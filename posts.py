@@ -84,6 +84,7 @@ class Posts(SqlInterface) :
 		blocked: bool = await Posts.isPostBlocked(user, uploader, tags)
 
 		self.logger.info({
+			'tree': await Posts.fetchBlockTree(user),
 			'post': post,
 			'uploader': uploader,
 			'tags': tags,
