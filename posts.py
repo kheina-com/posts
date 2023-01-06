@@ -84,9 +84,9 @@ class Posts(SqlInterface) :
 			**post,
 			user = await UsersService(handle=uploader, auth=user.token.token_string if user.token else None),
 			blocked = (
-				(await self.isPostBlocked(user, uploader, post['tags']))
+				(await Posts.isPostBlocked(user, uploader, post['tags']))
 				if 'tags' in post else
-				(await self.isPostBlocked(user, uploader, await TagService.postTags(post['post_id'])))
+				(await Posts.isPostBlocked(user, uploader, await TagService.postTags(post['post_id'])))
 			),
 		)
 
@@ -885,7 +885,7 @@ class Posts(SqlInterface) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = await self.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
+				blocked = await Posts.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -1011,7 +1011,7 @@ class Posts(SqlInterface) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = await self.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
+				blocked = await Posts.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
