@@ -79,16 +79,21 @@ class Posts(SqlInterface) :
 
 	async def _dict_to_post(self, post: dict, user: KhUser) -> Post :
 		post = copy(post)
-		uploader = post.pop('user')
+		uploader: str = post.pop('user')
+		tags: List[str] = post['tags'] if 'tags' in post else (await TagService.postTags(post['post_id']))
+		blocked: bool = await Posts.isPostBlocked(user, uploader, tags)
+
+		self.logger.info({
+			'post': post,
+			'uploader': uploader,
+			'tags': tags,
+			'blocked': blocked,
+		})
 
 		return Post(
 			**post,
 			user = await UsersService(handle=uploader, auth=user.token.token_string if user.token else None),
-			blocked = (
-				(await Posts.isPostBlocked(user, uploader, post['tags']))
-				if 'tags' in post else
-				(await Posts.isPostBlocked(user, uploader, await TagService.postTags(post['post_id'])))
-			),
+			blocked = blocked,
 		)
 
 
