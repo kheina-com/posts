@@ -1,2 +1,2 @@
 kh-common[aerospike,auth,logging,scoring,sql]~=0.6.6
-fuzzly-configs~=0.0.2
+fuzzly-configs~=0.0.3
