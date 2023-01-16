@@ -25,7 +25,7 @@ setup(
 	url='https://github.com/kheina-com/posts',
 	packages=find_packages(exclude=['tests']),
 	install_requires=list(filter(None, map(str.strip, open('requirements.txt').read().split()))),
-	python_requires='>=3.7.*',
+	python_requires='>=3.9.*',
 	license='Mozilla Public License 2.0',
 	extras_require=dict(map(lambda x : (x[1], open(x[0]).read().split()), filter(None, map(req_regex.match, listdir())))),
 )
