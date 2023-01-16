@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 from fuzzly_configs import UserConfigGateway
 from fuzzly_configs.models import UserConfigResponse
 from kh_common.auth import KhUser
+from kh_common.base64 import b64decode
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.config.constants import users_host
@@ -21,9 +22,10 @@ from kh_common.scoring import controversial as calc_cont
 from kh_common.scoring import hot as calc_hot
 from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
+from kh_common.utilities import int_from_bytes
 
 from fuzzly_posts.blocking import BlockTree
-from fuzzly_posts.models import MediaType, Post, PostSize, PostSort, Score
+from fuzzly_posts.models import MediaType, Post, PostSize, PostSort, Score, int_to_post_id
 from tags import Tags
 
 
@@ -36,9 +38,11 @@ DefaultBlockTree: BlockTree = BlockTree()
 
 class Posts(SqlInterface) :
 
-	def _validatePostId(self, post_id: str) :
+	def _validatePostId(self, post_id: str) -> int :
 		if len(post_id) != 8 :
 			raise BadRequest(f'the given post id is invalid: {post_id}.')
+
+		return int_from_bytes(b64decode(post_id))
 
 
 	def _validateVote(self, vote: Union[bool, None]) :
@@ -80,7 +84,7 @@ class Posts(SqlInterface) :
 	async def _dict_to_post(self, post: dict, user: KhUser) -> Post :
 		post = copy(post)
 		uploader: str = post.pop('user')
-		tags: List[str] = post['tags'] if 'tags' in post else (await TagService.postTags(post['post_id']))
+		tags: List[str] = post['tags'] if 'tags' in post else (await TagService.postTags(int_to_post_id(post['post_id'])))
 		blocked: bool = await Posts.isPostBlocked(user, uploader, tags)
 
 		return Post(
@@ -92,7 +96,7 @@ class Posts(SqlInterface) :
 
 	@HttpErrorHandler('processing vote')
 	def vote(self, user: KhUser, post_id: str, upvote: Union[bool, None]) :
-		self._validatePostId(post_id)
+		internal_post_id: int = self._validatePostId(post_id)
 		self._validateVote(upvote)
 
 		with self.transaction() as transaction :
@@ -116,9 +120,9 @@ class Posts(SqlInterface) :
 				GROUP BY posts.post_id;
 				""",
 				(
-					user.user_id, post_id, upvote,
-					upvote, user.user_id, post_id,
-					post_id,
+					user.user_id, internal_post_id, upvote,
+					upvote, user.user_id, internal_post_id,
+					internal_post_id,
 				),
 				fetch_one=True,
 			)
@@ -149,8 +153,8 @@ class Posts(SqlInterface) :
 					WHERE post_scores.post_id = %s;
 				""",
 				(
-					post_id, up, down, top, hot, best, controversial,
-					up, down, top, hot, best, controversial, post_id,
+					internal_post_id, up, down, top, hot, best, controversial,
+					up, down, top, hot, best, controversial, internal_post_id,
 				),
 			)
 
@@ -648,7 +652,7 @@ class Posts(SqlInterface) :
 					ON post_scores.post_id = posts.post_id
 			WHERE posts.post_id = %s
 			""",
-			(post_id,),
+			(self._validatePostId(post_id),),
 			fetch_one=True,
 		)
 
@@ -724,7 +728,7 @@ class Posts(SqlInterface) :
 			OFFSET %s;
 			""",
 			(
-				post_id,
+				self._validatePostId(post_id),
 				count,
 				count * (page - 1),
 			),
@@ -990,7 +994,6 @@ class Posts(SqlInterface) :
 		)
 
 		data = ensure_future(self.query_async(query, fetch_all=True))
-		blocked_tags = self.user_blocked_tags(user.user_id)
 		data = await data
 
 		return now, [

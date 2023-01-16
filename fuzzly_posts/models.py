@@ -2,12 +2,21 @@ from datetime import datetime
 from enum import Enum, unique
 from typing import List, Optional, Union
 
+from kh_common.base64 import b64encode
 from kh_common.config.constants import Environment, environment
 from kh_common.config.repo import short_hash
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
 from kh_common.models.user import UserPortable
-from pydantic import BaseModel
+from kh_common.utilities import int_to_bytes
+from pydantic import BaseModel, validator
+
+
+def int_to_post_id(value: int) -> str :
+	if type(value) == int :
+		return b64encode(int_to_bytes(value)).decode()
+
+	return value
 
 
 @unique
@@ -66,6 +75,8 @@ class PostSize(BaseModel) :
 
 
 class Post(BaseModel) :
+	_post_id_converter = validator('post_id', pre=True, always=True, allow_reuse=True)(int_to_post_id)
+
 	post_id: str
 	title: Optional[str]
 	description: Optional[str]
