@@ -14,7 +14,7 @@ from pydantic import BaseModel, validator
 
 def int_to_post_id(value: int) -> str :
 	if type(value) == int :
-		return b64encode(int_to_bytes(value)).decode()
+		return b64encode(int.to_bytes(value, 6, 'big')).decode()
 
 	return value
 
