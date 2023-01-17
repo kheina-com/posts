@@ -1,4 +1,9 @@
-from typing import Dict, Iterable, List, Set
+from typing import Dict, Iterable, Set
+
+from fuzzly_configs import UserConfigGateway
+from fuzzly_configs.models import UserConfigResponse
+from kh_common.auth import KhUser
+from kh_common.caching import ArgsCache
 
 
 class BlockTree :
@@ -78,3 +83,28 @@ class BlockTree :
 					return True
 
 		return False
+
+
+DefaultBlockTree: BlockTree = BlockTree()
+
+
+class Blocking :
+	@ArgsCache(5)
+	async def fetchBlockTree(user: KhUser) -> BlockTree :
+		if not user.token :
+			return DefaultBlockTree
+
+		# TODO: return underlying UserConfig here, once internal tokens are implemented
+		user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
+		tree: BlockTree = BlockTree()
+		tree.populate(user_config.blocked_tags or [])
+		return tree
+
+
+	async def isPostBlocked(user: KhUser, uploader: str, uploader_id: int, tags: Iterable[str]) -> bool :
+		block_tree: BlockTree = await Blocking.fetchBlockTree(user)
+
+		tags: Set[str] = set(tags)
+		tags.add('@' + uploader)
+
+		return block_tree.blocked(tags)

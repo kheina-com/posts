@@ -1,13 +1,9 @@
 from asyncio import Task, ensure_future, wait
 from collections import defaultdict
-from copy import copy
 from datetime import timedelta
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple
 
-from fuzzly_configs import UserConfigGateway
-from fuzzly_configs.models import UserConfigResponse
 from kh_common.auth import KhUser
-from kh_common.base64 import b64decode
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.config.constants import users_host
@@ -17,38 +13,23 @@ from kh_common.gateway import Gateway
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
 from kh_common.models.user import UserPortable
-from kh_common.scoring import confidence
-from kh_common.scoring import controversial as calc_cont
-from kh_common.scoring import hot as calc_hot
 from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
-from kh_common.utilities import int_from_bytes
 
-from fuzzly_posts.blocking import BlockTree
-from fuzzly_posts.models import MediaType, Post, PostSize, PostSort, Score, int_to_post_id
+from fuzzly_posts.blocking import Blocking
+from fuzzly_posts.models import InternalPost, MediaType, Post, PostId, PostSize, PostSort, Score
+from fuzzly_posts.scoring import Scoring
 from tags import Tags
 
 
 TagService: Tags = Tags()
 UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
-VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
-DefaultBlockTree: BlockTree = BlockTree()
+Scores: Scoring = Scoring()
+BlockCheck: Blocking = Blocking()
 
 
 class Posts(SqlInterface) :
-
-	def _validatePostId(self, post_id: str) -> int :
-		if len(post_id) != 8 :
-			raise BadRequest(f'the given post id is invalid: {post_id}.')
-
-		return int_from_bytes(b64decode(post_id))
-
-
-	def _validateVote(self, vote: Union[bool, None]) :
-		if not isinstance(vote, (bool, type(None))) :
-			raise BadRequest('the given vote is invalid (vote value must be integer. 1 = up, -1 = down, 0 or null to remove vote)')
-
 
 	def _validatePageNumber(self, page_number: int) :
 		if page_number < 1 :
@@ -60,143 +41,13 @@ class Posts(SqlInterface) :
 			raise BadRequest(f'the given count is invalid: {count}. count must be between 1 and 1000.', count=count)
 
 
-	@ArgsCache(5)
-	async def fetchBlockTree(user: KhUser) -> BlockTree :
-		if not user.token :
-			return DefaultBlockTree
-
-		# TODO: return underlying UserConfig here, once internal tokens are implemented
-		user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
-		tree: BlockTree = BlockTree()
-		tree.populate(user_config.blocked_tags or [])
-		return tree
-
-
-	async def isPostBlocked(user: KhUser, uploader: str, tags: Iterable[str]) -> bool :
-		block_tree: BlockTree = await Posts.fetchBlockTree(user)
-
-		tags: Set[str] = set(tags)
-		tags.add('@' + uploader)
-
-		return block_tree.blocked(tags)
-
-
-	async def _dict_to_post(self, post: dict, user: KhUser) -> Post :
-		post = copy(post)
-		uploader: str = post.pop('user')
-		tags: List[str] = post['tags'] if 'tags' in post else (await TagService.postTags(int_to_post_id(post['post_id'])))
-		blocked: bool = await Posts.isPostBlocked(user, uploader, tags)
-
-		return Post(
-			**post,
-			user = await UsersService(handle=uploader, auth=user.token.token_string if user.token else None),
-			blocked = blocked,
-		)
-
-
 	@HttpErrorHandler('processing vote')
-	def vote(self, user: KhUser, post_id: str, upvote: Union[bool, None]) :
-		internal_post_id: int = self._validatePostId(post_id)
-		self._validateVote(upvote)
-
-		with self.transaction() as transaction :
-			data = transaction.query("""
-				INSERT INTO kheina.public.post_votes
-				(user_id, post_id, upvote)
-				VALUES
-				(%s, %s, %s)
-				ON CONFLICT ON CONSTRAINT post_votes_pkey DO 
-					UPDATE SET
-						upvote = %s
-					WHERE post_votes.user_id = %s
-						AND post_votes.post_id = %s;
-
-				SELECT COUNT(post_votes.upvote), SUM(post_votes.upvote::int), posts.created_on
-				FROM kheina.public.posts
-					LEFT JOIN kheina.public.post_votes
-						ON post_votes.post_id = posts.post_id
-							AND post_votes.upvote IS NOT NULL
-				WHERE posts.post_id = %s
-				GROUP BY posts.post_id;
-				""",
-				(
-					user.user_id, internal_post_id, upvote,
-					upvote, user.user_id, internal_post_id,
-					internal_post_id,
-				),
-				fetch_one=True,
-			)
-
-			up: int = data[1] or 0
-			total: int = data[0] or 0
-			down: int = total - up
-			created: float = data[2].timestamp()
-
-			top: int = up - down
-			hot: float = calc_hot(up, down, created)
-			best: float = confidence(up, total)
-			controversial: float = calc_cont(up, down)
-
-			transaction.query("""
-				INSERT INTO kheina.public.post_scores
-				(post_id, upvotes, downvotes, top, hot, best, controversial)
-				VALUES
-				(%s, %s, %s, %s, %s, %s, %s)
-				ON CONFLICT ON CONSTRAINT post_scores_pkey DO 
-					UPDATE SET
-						upvotes = %s,
-						downvotes = %s,
-						top = %s,
-						hot = %s,
-						best = %s,
-						controversial = %s
-					WHERE post_scores.post_id = %s;
-				""",
-				(
-					internal_post_id, up, down, top, hot, best, controversial,
-					up, down, top, hot, best, controversial, internal_post_id,
-				),
-			)
-
-			transaction.commit()
-
-		return Score(
-			up = up,
-			down = down,
-			total = total,
-			user_vote = 0 if upvote is None else (1 if upvote else -1),
-		)
+	def vote(self, user: KhUser, post_id: str, upvote: Optional[bool]) -> Score :
+		return Scores.vote(user, post_id, upvote)
 
 
 	@ArgsCache(60)
-	async def _count_posts_by_tag(self, tag: Optional[str]) :
-		if tag :
-			return await self.query_async("""
-				SELECT COUNT(1)
-				FROM kheina.public.tags
-					INNER JOIN kheina.public.tag_post
-						ON tags.tag_id = tag_post.tag_id
-					INNER JOIN kheina.public.posts
-						ON tag_post.post_id = posts.post_id
-							AND posts.privacy_id = privacy_to_id('public')
-				WHERE tags.tag = %s;
-				""",
-				(tag,),
-				fetch_one=True,
-			)
-
-		else :
-			return await self.query_async("""
-				SELECT COUNT(1)
-				FROM kheina.public.posts
-				WHERE posts.privacy_id = privacy_to_id('public');
-				""",
-				fetch_one=True,
-			)
-
-
-	@ArgsCache(60)
-	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) :
+	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) -> List[InternalPost] :
 		idk = { }
 
 		if tags :
@@ -447,6 +298,9 @@ class Posts(SqlInterface) :
 			query.order(
 				Field('posts', 'created_on'),
 				Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
+			).group(
+				Field('posts', 'post_id'),
+				Field('users', 'user_id'),
 			)
 
 		else :
@@ -456,6 +310,21 @@ class Posts(SqlInterface) :
 			).order(
 				Field('posts', 'created_on'),
 				Order.descending_nulls_first,
+			).join(
+				Join(
+					JoinType.inner,
+					Table('kheina.public.post_scores'),
+				).where(
+					Where(
+						Field('post_scores', 'post_id'),
+						Operator.equal,
+						Field('posts', 'post_id'),
+					),
+				),
+			).group(
+				Field('posts', 'post_id'),
+				Field('post_scores', 'post_id'),
+				Field('users', 'user_id'),
 			)
 
 		query.select(
@@ -463,8 +332,6 @@ class Posts(SqlInterface) :
 			Field('posts', 'title'),
 			Field('posts', 'description'),
 			Field('users', 'handle'),
-			Field('post_scores', 'upvotes'),
-			Field('post_scores', 'downvotes'),
 			Field('posts', 'rating'),
 			Field('posts', 'parent'),
 			Field('posts', 'created_on'),
@@ -474,82 +341,51 @@ class Posts(SqlInterface) :
 			Field('posts', 'width'),
 			Field('posts', 'height'),
 			Field('users', 'user_id'),
-		).join(
-			Join(
-				JoinType.inner,
-				Table('kheina.public.post_scores'),
-			).where(
-				Where(
-					Field('post_scores', 'post_id'),
-					Operator.equal,
-					Field('posts', 'post_id'),
-				),
-			),
-		).group(
-			Field('posts', 'post_id'),
-			Field('post_scores', 'post_id'),
-			Field('users', 'user_id'),
 		).limit(
 			count,
 		).page(
 			page,
 		)
 
-
 		sql, params = query.build()
-
 		self.logger.info({
 			'query': sql,
 			'params': params,
 			**idk,
 		})
 
-		data = self.query(query, fetch_all=True)
-
-		posts: list = []
-		tags: Dict[str, Task[List[str]]] = { }
+		data = await self.query_async(query, fetch_all=True)
+		posts: List[InternalPost] = []
 
 		for row in data :
-			post = {
-				'post_id': row[0],
-				'title': row[1],
-				'description': row[2],
-				'user': row[3],
-				'score': Score(
-					up = row[4],
-					down = row[5],
-					total = row[4] + row[5],
-				) if row[4] is not None else None,
-				'rating': self._get_rating_map()[row[6]],
-				'parent': row[7],
-				'privacy': Privacy.public,
-				'created': row[8],
-				'updated': row[9],
-				'filename': row[10],
-				'media_type': self._get_media_type_map()[row[11]],
-				'user_id': row[14],
-				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
-			}
+			post = InternalPost(
+				post_id=row[0],
+				title=row[1],
+				description=row[2],
+				user=row[3],
+				rating=self._get_rating_map()[row[4]],
+				parent=row[5],
+				privacy=Privacy.public,
+				created=row[6],
+				updated=row[7],
+				filename=row[8],
+				media_type=self._get_media_type_map()[row[9]],
+				user_id=row[12],
+				size=PostSize(width=row[10], height=row[11]) if row[10] and row[11] else None,
+			)
 			posts.append(post)
-			tags[row[0]] = ensure_future(TagService.postTags(post['post_id']))
-			KVS.put(row[0], post)
+			KVS.put(post.post_id, post)
 
-		return [
-			{
-				**post,
-				'tags': await tags[post['post_id']],
-			}
-			for post in posts
-		]
+		return posts
 
 
 	@HttpErrorHandler('fetching posts')
-	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Union[List[str], None], count:int=64, page:int=1) :
+	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Optional[List[str]], count:int=64, page:int=1) -> List[Post] :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
-		posts = [ensure_future(self._dict_to_post(post, user)) for post in await posts]
+		posts: Task[List[InternalPost]] = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
+		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await posts]
 
 		if posts :
 			await wait(posts)
@@ -606,43 +442,22 @@ class Posts(SqlInterface) :
 		})
 
 
-	@ArgsCache(10)
-	def _get_followers(self, user_id) -> Set[str] :
-		if not user_id :
-			return set()
-
-		data = self.query("""
-			SELECT
-				users.handle
-			FROM kheina.public.following
-				INNER JOIN kheina.public.users
-					ON users.user_id = following.follows
-			WHERE following.user_id = %s;
-			""",
-			(user_id,),
-			fetch_all=True,
-		)
-		return set(map(lambda x : x[0].lower(), data))
-
-
 	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=KVS)
-	async def _get_post(self, post_id: str) :
+	async def _get_post(self, post_id: PostId) -> InternalPost :
 		data = self.query("""
 			SELECT
+				posts.post_id,
 				posts.title,
 				posts.description,
-				posts.filename,
 				users.handle,
 				users.user_id,
 				posts.created_on,
 				posts.updated_on,
 				posts.privacy_id,
 				posts.media_type_id,
-				post_scores.upvotes,
-				post_scores.downvotes,
+				posts.filename,
 				posts.rating,
 				posts.parent,
-				posts.post_id,
 				posts.width,
 				posts.height
 			FROM kheina.public.posts
@@ -652,70 +467,61 @@ class Posts(SqlInterface) :
 					ON post_scores.post_id = posts.post_id
 			WHERE posts.post_id = %s
 			""",
-			(self._validatePostId(post_id),),
+			(post_id.int(),),
 			fetch_one=True,
 		)
 
 		if not data :
 			raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
-		return {
-			'post_id': data[13],
-			'title': data[0],
-			'description': data[1],
-			'user': data[3],
-			'score': Score(
-				up = data[9],
-				down = data[10],
-				total = data[9] + data[10],
-			) if data[9] is not None else None,
-			'rating': self._get_rating_map()[data[11]],
-			'parent': data[12],
-			'privacy': self._get_privacy_map()[data[7]],
-			'created': data[5],
-			'updated': data[6],
-			'filename': data[2],
-			'media_type': self._get_media_type_map()[data[8]],
-			'user_id': data[4],
-			'size': PostSize(width=data[14], height=data[15]) if data[14] and data[15] else None,
-		}
+		return InternalPost(
+			post_id=data[0],
+			title=data[1],
+			description=data[2],
+			user=data[3],
+			user_id=data[4],
+			created=data[5],
+			updated=data[6],
+			rating=self._get_rating_map()[data[10]],
+			parent=data[11],
+			privacy=self._get_privacy_map()[data[7]],
+			filename=data[9],
+			media_type=self._get_media_type_map()[data[8]],
+			size=PostSize(width=data[12], height=data[13]) if data[12] and data[13] else None,
+		)
 
 
 	@HttpErrorHandler('retrieving post')
-	async def getPost(self, user: KhUser, post_id: str) -> Post :
-		self._validatePostId(post_id)
+	async def getPost(self, user: KhUser, post_id: PostId) -> Post :
+		post: InternalPost = await self._get_post(post_id)
 
-		post = ensure_future(self._get_post(post_id))
-		tags = ensure_future(TagService.postTags(post_id))
-		post = await post	
-		uploader = post.pop('user_id')
-		post['tags'] = await tags
-
-		user_is_uploader = uploader == user.user_id and await user.authenticated(raise_error=False)
-
-		if post['privacy'] in { Privacy.public, Privacy.unlisted } or user_is_uploader :
-			return await self._dict_to_post(post, user)
+		if (
+			post.privacy in { Privacy.public, Privacy.unlisted } or
+			(post.user_id == user.user_id and await user.authenticated(raise_error=False))
+			# add additional check here to see if post is private, but user was given permission to view
+		) :
+			return await post.post(user)
 
 		raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
 
 	@ArgsCache(5)
-	async def _getComments(self, post_id: str, sort: PostSort, count: int, page: int) :
-		data = self.query(f"""
+	async def _getComments(self, post_id: PostId, sort: PostSort, count: int, page: int) -> List[InternalPost] :
+		# TODO: fix new and old sorts
+		data = await self.query_async(f"""
 			SELECT
 				posts.post_id,
 				posts.title,
 				posts.description,
 				users.handle,
-				post_scores.upvotes,
-				post_scores.downvotes,
 				posts.rating,
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
 				posts.media_type_id,
 				posts.width,
-				posts.height
+				posts.height,
+				users.user_id
 			FROM kheina.public.posts
 				INNER JOIN kheina.public.users
 					ON posts.uploader = users.user_id
@@ -728,44 +534,43 @@ class Posts(SqlInterface) :
 			OFFSET %s;
 			""",
 			(
-				self._validatePostId(post_id),
+				post_id.int(),
 				count,
 				count * (page - 1),
 			),
 			fetch_all=True,
 		)
 
-		return [
-			{
-				'post_id': row[0],
-				'title': row[1],
-				'description': row[2],
-				'user': row[3],
-				'score': Score(
-					up = row[4],
-					down = row[5],
-					total = row[4] + row[5],
-				),
-				'rating': self._get_rating_map()[row[6]],
-				'created': row[7],
-				'updated': row[8],
-				'filename': row[9],
-				'media_type': self._get_media_type_map()[row[10]],
-				'privacy': Privacy.public,
-				'tags': await TagService.postTags(row[0]),
-				'size': PostSize(width=row[11], height=row[12]) if row[11] and row[12] else None,
-			}
-			for row in data
-		]
+		posts: List[InternalPost] = []
+
+		for row in data :
+			post = InternalPost(
+				post_id=row[0],
+				title=row[1],
+				description=row[2],
+				user=row[3],
+				rating=self._get_rating_map()[row[4]],
+				privacy=Privacy.public,
+				parent=post_id,
+				created=row[5],
+				updated=row[6],
+				filename=row[7],
+				media_type=self._get_media_type_map()[row[8]],
+				user_id=row[11],
+				size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
+			)
+			posts.append(post)
+			KVS.put(post.post_id, post)
+
+		return posts
 
 
 	@HttpErrorHandler('retrieving comments')
-	async def fetchComments(self, user: KhUser, post_id: str, sort: PostSort, count: int, page: int) :
-		self._validatePostId(post_id)
+	async def fetchComments(self, user: KhUser, post_id: PostId, sort: PostSort, count: int, page: int) -> List[Post] :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = [ensure_future(self._dict_to_post(post, user)) for post in await self._getComments(post_id, sort, count, page)]
+		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await self._getComments(post_id, sort, count, page)]
 
 		if posts :
 			await wait(posts)
@@ -797,6 +602,7 @@ class Posts(SqlInterface) :
 			Field('post_votes', 'upvote'),
 			Field('posts', 'width'),
 			Field('posts', 'height'),
+			Field('users', 'user_id'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -869,14 +675,22 @@ class Posts(SqlInterface) :
 			page,
 		)
 
-		data = self.query(query, fetch_all=True)
+		data = await self.query_async(query, fetch_all=True)
+		meta: Dict[str, Task[List[str]]] = { }
+		token_string: Optional[str] = user.token.token_string if user.token else None
+
+		for row in data :
+			meta[row[0]] = {
+				'tags': ensure_future(TagService.postTags(row[0])),
+				'user': ensure_future(UsersService(handle=row[3], auth=token_string)),
+			}
 
 		return [
 			Post(
 				post_id = row[0],
 				title = row[1],
 				description = row[2],
-				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
+				user = await meta[row[0]]['user'],
 				score = Score(
 					up = row[4],
 					down = row[5],
@@ -890,7 +704,7 @@ class Posts(SqlInterface) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = await Posts.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
+				blocked = await BlockCheck.isPostBlocked(user, row[3], row[15], await meta[row[0]]['tags']),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -899,7 +713,7 @@ class Posts(SqlInterface) :
 
 	@ArgsCache(10)
 	@HttpErrorHandler('generating RSS feed')
-	async def RssFeedPosts(self, user: KhUser) :
+	async def RssFeedPosts(self, user: KhUser) -> Tuple[datetime, List[Post]]:
 		now = datetime.now()
 
 		query = Query(
@@ -920,6 +734,7 @@ class Posts(SqlInterface) :
 			Field('post_votes', 'upvote'),
 			Field('posts', 'width'),
 			Field('posts', 'height'),
+			Field('users', 'user_id'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -993,15 +808,22 @@ class Posts(SqlInterface) :
 			Order.descending_nulls_first,
 		)
 
-		data = ensure_future(self.query_async(query, fetch_all=True))
-		data = await data
+		data = await self.query_async(query, fetch_all=True)
+		meta: Dict[str, Task[List[str]]] = { }
+		token_string: Optional[str] = user.token.token_string if user.token else None
+
+		for row in data :
+			meta[row[0]] = {
+				'tags': ensure_future(TagService.postTags(row[0])),
+				'user': ensure_future(UsersService(handle=row[3], auth=token_string)),
+			}
 
 		return now, [
 			Post(
 				post_id = row[0],
 				title = row[1],
 				description = row[2],
-				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
+				user = await meta[row[0]]['user'],
 				score = Score(
 					up = row[4],
 					down = row[5],
@@ -1015,7 +837,7 @@ class Posts(SqlInterface) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = await Posts.isPostBlocked(user, row[3], await TagService.postTags(row[0])),
+				blocked = await BlockCheck.isPostBlocked(user, row[3], row[15], await meta[row[0]]['tags']),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -1023,23 +845,22 @@ class Posts(SqlInterface) :
 
 
 	@ArgsCache(5)
-	async def _fetch_user_posts(self, handle: str, count: int, page: int) :
-		data = self.query(f"""
+	async def _fetch_user_posts(self, handle: str, count: int, page: int) -> List[InternalPost] :
+		data = await self.query_async(f"""
 			SELECT DISTINCT
 				posts.post_id,
 				posts.title,
 				posts.description,
 				u2.handle,
-				post_scores.upvotes,
-				post_scores.downvotes,
 				posts.rating,
-				posts.parent,
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
 				posts.media_type_id,
 				posts.width,
-				posts.height
+				posts.height,
+				users.user_id,
+				posts.parent
 			FROM kheina.public.users u
 				INNER JOIN kheina.public.tags
 					ON tags.owner = u.user_id
@@ -1061,37 +882,36 @@ class Posts(SqlInterface) :
 			fetch_all=True,
 		)
 
-		return [
-			{
-				'post_id': row[0],
-				'title': row[1],
-				'description': row[2],
-				'user': row[3],
-				'score': Score(
-					up = row[4],
-					down = row[5],
-					total = row[4] + row[5],
-				),
-				'rating': self._get_rating_map()[row[6]],
-				'parent': row[7],
-				'privacy': Privacy.public,
-				'created': row[8],
-				'updated': row[9],
-				'filename': row[10],
-				'media_type': self._get_media_type_map()[row[11]],
-				'tags': await TagService.postTags(row[0]),
-				'size': PostSize(width=row[12], height=row[13]) if row[12] and row[13] else None,
-			}
-			for row in data
-		]
+		posts: List[InternalPost] = []
+
+		for row in data :
+			post = InternalPost(
+				post_id=row[0],
+				title=row[1],
+				description=row[2],
+				user=row[3],
+				rating=self._get_rating_map()[row[4]],
+				privacy=Privacy.public,
+				created=row[5],
+				updated=row[6],
+				filename=row[7],
+				media_type=self._get_media_type_map()[row[8]],
+				size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
+				user_id=row[11],
+				parent=row[12],
+			)
+			posts.append(post)
+			KVS.put(post.post_id, post)
+
+		return posts
 
 
 	@HttpErrorHandler('retrieving user posts')
-	async def fetchUserPosts(self, user: KhUser, handle: str, count: int, page: int) :
+	async def fetchUserPosts(self, user: KhUser, handle: str, count: int, page: int) -> List[Post] :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts = [ensure_future(self._dict_to_post(post, user)) for post in await self._fetch_user_posts(handle, count, page)]
+		posts: List[Task[Post]] = [ensure_future(post.post(user)) for post in await self._fetch_user_posts(handle, count, page)]
 
 		if posts :
 			await wait(posts)

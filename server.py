@@ -4,12 +4,13 @@ from typing import List
 from urllib.parse import quote
 
 from kh_common.backblaze import B2Interface
-from kh_common.config.constants import users_host
+from kh_common.config.constants import environment, users_host
 from kh_common.gateway import Gateway
 from kh_common.models.user import User
 from kh_common.server import Request, Response, ServerApp
 
-from fuzzly_posts.models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, Score, TimelineRequest, VoteRequest
+from fuzzly_posts.models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, PostId, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, Score, TimelineRequest, VoteRequest
+from fuzzly_posts.scoring import Scoring
 from posts import Posts
 
 
@@ -35,6 +36,7 @@ app = ServerApp(
 b2 = B2Interface()
 posts = Posts()
 UsersService = Gateway(users_host + '/v1/fetch_self', User)
+Scores: Scoring = Scoring()
 
 
 @app.on_event('shutdown')
@@ -60,7 +62,7 @@ async def v1FetchComments(req: Request, body: FetchCommentsRequest) -> List[Post
 
 
 @app.get('/v1/post/{post_id}', responses={ 200: { 'model': Post } })
-async def v1GetPost(req: Request, post_id: str) -> Post :
+async def v1GetPost(req: Request, post_id: PostId) -> Post :
 	return await posts.getPost(req.user, post_id)
 
 
@@ -88,9 +90,10 @@ async def v1TimelinePosts(req: Request, body: TimelineRequest) -> List[Post] :
 
 
 async def get_post_media(post: Post) :
-	file_info = await b2.b2_get_file_info(post.post_id, post.filename)
+	filename: str = f'{post.post_id}/{escape(quote(post.filename))}'
+	file_info = await b2.b2_get_file_info(filename)
 	return RssMedia.format(
-		url=f'https://cdn.kheina.com/file/kheina-content/{post.post_id}/{escape(quote(post.filename))}',
+		url='https://cdn.fuzz.ly/' + filename,
 		mime_type=file_info['contentType'],
 		length=file_info['contentLength'],
 	)
@@ -124,9 +127,9 @@ async def v1Rss(req: Request) :
 			items='\n'.join([
 				RssItem.format(
 					title=RssTitle.format(escape(post.title)) if post.title else '',
-					link=f'https://dev.kheina.com/p/{post.post_id}',
+					link=f'https://fuzz.ly/p/{post.post_id}' if environment.is_prod() else f'https://dev.fuzz.ly/p/{post.post_id}',
 					description=RssDescription.format(escape(post.description)) if post.description else '',
-					user=f'https://dev.kheina.com/{post.user.handle}',
+					user=f'https://fuzz.ly/{post.user.handle}' if environment.is_prod() else f'https://dev.fuzz.ly/{post.user.handle}',
 					created=post.created.strftime(RssDateFormat),
 					media=await media[post.post_id] if post.filename else '',
 					post_id=post.post_id,
