@@ -8,7 +8,6 @@ from kh_common.config.repo import short_hash
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
 from kh_common.models.user import UserPortable
-from kh_common.utilities import int_to_bytes
 from pydantic import BaseModel, validator
 
 
@@ -75,7 +74,7 @@ class PostSize(BaseModel) :
 
 
 class Post(BaseModel) :
-	_post_id_converter = validator('post_id', pre=True, always=True, allow_reuse=True)(int_to_post_id)
+	_post_id_converter = validator('post_id', 'parent', pre=True, always=True, allow_reuse=True)(int_to_post_id)
 
 	post_id: str
 	title: Optional[str]
@@ -95,18 +94,18 @@ class Post(BaseModel) :
 
 RssFeed = f"""<rss version="2.0">
 <channel>
-<title>Timeline | kheina.com</title>
-<link>{'https://dev.kheina.com/timeline' if environment != Environment.prod else 'https://kheina.com/timeline'}</link>
+<title>Timeline | fuzz.ly</title>
+<link>{'https://dev.fuzz.ly/timeline' if environment != Environment.prod else 'https://fuzz.ly/timeline'}</link>
 <description>{{description}}</description>
 <language>en-us</language>
 <pubDate>{{pub_date}}</pubDate>
 <lastBuildDate>{{last_build_date}}</lastBuildDate>
 <docs>https://www.rssboard.org/rss-specification</docs>
-<generator>kheina.com - posts v.{short_hash}</generator>
+<generator>fuzz.ly - posts v.{short_hash}</generator>
 <image>
 <url>https://cdn.fuzz.ly/favicon.png</url>
-<title>Timeline | kheina.com</title>
-<link>{'https://dev.kheina.com/timeline' if environment != Environment.prod else 'https://kheina.com/timeline'}</link>
+<title>Timeline | fuzz.ly</title>
+<link>{'https://dev.fuzz.ly/timeline' if environment != Environment.prod else 'https://fuzz.ly/timeline'}</link>
 </image>
 <ttl>1440</ttl>
 {{items}}
