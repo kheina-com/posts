@@ -1,8 +1,9 @@
 from asyncio import Task, ensure_future
 from datetime import datetime
 from enum import Enum, unique
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
+from aiohttp import ClientResponseError
 from kh_common.auth import KhUser
 from kh_common.config.constants import tags_host, users_host
 from kh_common.gateway import Gateway
@@ -41,6 +42,16 @@ class TagGroups(Dict[TagGroupPortable, List[TagPortable]]) :
 
 TagsGateway: Gateway = Gateway(tags_host + '/v1/fetch_tags/{post_id}', TagGroups)
 
+async def _get_tags(post_id: PostId) -> Iterable[str] :
+	try :
+		return flatten(await TagsGateway(post_id=post_id))
+
+	except ClientResponseError as e :
+		if e.status != 404 :
+			raise
+
+		return []
+
 
 class InternalPost(BaseModel) :
 	post_id: int
@@ -65,9 +76,9 @@ class InternalPost(BaseModel) :
 		blocked: bool = False
 
 		if user :
-			tags: TagGroups = ensure_future(TagsGateway(post_id=post_id))
+			tags: TagGroups = ensure_future(_get_tags(post_id))
 			uploader = await uploader_task
-			blocked = await is_post_blocked(user, uploader.handle, self.user_id, flatten(await tags))
+			blocked = await is_post_blocked(user, uploader.handle, self.user_id, await tags)
 
 		else :
 			uploader = await uploader_task
