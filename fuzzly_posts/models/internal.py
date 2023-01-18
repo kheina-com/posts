@@ -60,8 +60,7 @@ class InternalPost(BaseModel) :
 	async def post(self: 'InternalPost', user: KhUser) -> Post :
 		post_id: PostId = PostId(self.post_id)
 		uploader_task: Task[UserPortable] = ensure_future(UserGateway(handle=self.user))
-		score: Task[Score] = ensure_future(Scores._get_score(post_id))
-		vote: Task[int] = ensure_future(Scores._get_vote(self.user_id, post_id))
+		score: Task[Score] = ensure_future(Scores.getScore(user, post_id))
 		uploader: UserPortable
 		blocked: bool = False
 
@@ -73,15 +72,12 @@ class InternalPost(BaseModel) :
 		else :
 			uploader = await uploader_task
 
-		score: Score = await score
-		score.user_vote = await vote
-
 		return Post(
 			post_id=post_id,
 			title=self.title,
 			description=self.description,
 			user=uploader,
-			score=score,
+			score=await score,
 			rating=self.rating,
 			parent=self.parent,
 			privacy=self.privacy,

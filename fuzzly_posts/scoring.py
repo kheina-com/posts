@@ -1,5 +1,5 @@
 from asyncio import Task, ensure_future
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache
@@ -96,7 +96,7 @@ class Scoring(SqlInterface) :
 
 
 	@AerospikeCache('kheina', 'score', '{post_id}', _kvs=ScoreCache)
-	async def _get_score(self, post_id: PostId) -> Score :
+	async def _get_score(self, post_id: PostId) -> Dict[str, int] :
 		data: List[int] = await self.query_async("""
 			SELECT
 				post_scores.upvotes,
@@ -111,11 +111,11 @@ class Scoring(SqlInterface) :
 		if not data :
 			raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
-		return  Score(
-			up = data[0],
-			down = data[1],
-			total = data[0] + data[1],
-		)
+		return  {
+			'up':data[0],
+			'down': data[1],
+			'total': data[0] + data[1],
+		}
 
 
 	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=ScoreCache)
@@ -137,11 +137,14 @@ class Scoring(SqlInterface) :
 		return 1 if data[0] else -1
 
 
-	async def getScore(self, user: KhUser, post_id: PostId) -> int :
+	async def getScore(self, user: KhUser, post_id: PostId) -> Score :
 		score: Task[Score] = ensure_future(self._get_score(post_id))
 		vote: Task[int] = ensure_future(self._get_vote(user.user_id, post_id))
 
 		score: Score = await score
 		score.user_vote = await vote
 
-		return score
+		return Score(
+			user_vote=await vote,
+			**score,
+		)
