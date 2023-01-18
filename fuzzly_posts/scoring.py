@@ -141,10 +141,7 @@ class Scoring(SqlInterface) :
 		score: Task[Score] = ensure_future(self._get_score(post_id))
 		vote: Task[int] = ensure_future(self._get_vote(user.user_id, post_id))
 
-		score: Score = await score
-		score.user_vote = await vote
-
 		return Score(
 			user_vote=await vote,
-			**score,
+			**await score,
 		)
