@@ -153,5 +153,5 @@ class Scoring(SqlInterface) :
 
 		return Score(
 			user_vote=await vote,
-			**await score,
+			**score,
 		)
