@@ -970,7 +970,7 @@ class Posts(SqlInterface) :
 				Where(
 					Field('post_votes', 'user_id'),
 					Operator.equal,
-					Field('following', 'user_id'),
+					Field('users', 'user_id'),
 				),
 				Where(
 					Field('post_votes', 'post_id'),
@@ -1104,7 +1104,7 @@ class Posts(SqlInterface) :
 				filename = row[8],
 				media_type = self._get_media_type_map()[row[9]],
 				blocked = False,
-				size = PostSize(width=row[10], height=row[1]) if row[10] and row[11] else None,
+				size = PostSize(width=row[10], height=row[11]) if row[10] and row[11] else None,
 			)
 			for row in data
 		]
