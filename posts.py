@@ -674,7 +674,7 @@ class Posts(SqlInterface) :
 		)
 
 		data = await self.query_async(query, fetch_all=True)
-		meta: Dict[str, Task[List[str]]] = { }
+		meta: Dict[PostId, Task[List[str]]] = { }
 		token_string: Optional[str] = user.token.token_string if user.token else None
 
 		for row in data :
@@ -807,7 +807,7 @@ class Posts(SqlInterface) :
 		)
 
 		data = await self.query_async(query, fetch_all=True)
-		meta: Dict[str, Task[List[str]]] = { }
+		meta: Dict[PostId, Task[List[str]]] = { }
 		token_string: Optional[str] = user.token.token_string if user.token else None
 
 		for row in data :
@@ -941,6 +941,7 @@ class Posts(SqlInterface) :
 			Field('posts', 'media_type_id'),
 			Field('posts', 'width'),
 			Field('posts', 'height'),
+			Field('post_votes', 'upvote'),
 		).join(
 			Join(
 				JoinType.inner,
@@ -958,6 +959,21 @@ class Posts(SqlInterface) :
 			).where(
 				Where(
 					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
+			Join(
+				JoinType.left,
+				Table('kheina.public.post_votes'),
+			).where(
+				Where(
+					Field('post_votes', 'user_id'),
+					Operator.equal,
+					Field('following', 'user_id'),
+				),
+				Where(
+					Field('post_votes', 'post_id'),
 					Operator.equal,
 					Field('posts', 'post_id'),
 				),
@@ -990,17 +1006,23 @@ class Posts(SqlInterface) :
 			)
 
 		data = await self.query_async(query, fetch_all=True)
+		token_string: Optional[str] = user.token.token_string if user.token else None
+		users: Dict[PostId, Task[UserPortable]] = { }
+
+		for row in data :
+			users[row[0]] = ensure_future(UsersService(handle=row[3], auth=token_string))
 
 		return [
 			Post(
 				post_id = row[0],
 				title = row[1],
 				description = row[2],
-				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
+				user = await users[row[0]],
 				score = Score(
 					up = row[4],
 					down = row[5],
 					total = row[4] + row[5],
+					user_vote = 0 if row[15] is None else (1 if row[15] else -1),
 				) if row[4] is not None else None,
 				rating = self._get_rating_map()[row[6]],
 				parent = row[7],
@@ -1016,7 +1038,7 @@ class Posts(SqlInterface) :
 		]
 
 
-	@HttpErrorHandler("retrieving user's own posts")
+	@HttpErrorHandler("retrieving user's drafts")
 	@ArgsCache(5)
 	async def fetchDrafts(self, user: KhUser) -> List[Post] :
 		query = Query(
@@ -1026,14 +1048,11 @@ class Posts(SqlInterface) :
 			Field('posts', 'title'),
 			Field('posts', 'description'),
 			Field('users', 'handle'),
-			Field('post_scores', 'upvotes'),
-			Field('post_scores', 'downvotes'),
 			Field('posts', 'rating'),
 			Field('posts', 'parent'),
 			Field('posts', 'created_on'),
 			Field('posts', 'updated_on'),
 			Field('posts', 'filename'),
-			Field('posts', 'privacy_id'),
 			Field('posts', 'media_type_id'),
 			Field('posts', 'width'),
 			Field('posts', 'height'),
@@ -1046,16 +1065,6 @@ class Posts(SqlInterface) :
 					Field('posts', 'uploader'),
 					Operator.equal,
 					Field('users', 'user_id'),
-				),
-			),
-			Join(
-				JoinType.left,
-				Table('kheina.public.post_scores'),
-			).where(
-				Where(
-					Field('post_scores', 'post_id'),
-					Operator.equal,
-					Field('posts', 'post_id'),
 				),
 			),
 		).where(
@@ -1075,27 +1084,27 @@ class Posts(SqlInterface) :
 		)
 
 		data = await self.query_async(query, fetch_all=True)
+		token_string: Optional[str] = user.token.token_string if user.token else None
+		users: Dict[PostId, Task[UserPortable]] = { }
+
+		for row in data :
+			users[row[0]] = ensure_future(UsersService(handle=row[3], auth=token_string))
 
 		return [
 			Post(
 				post_id = row[0],
 				title = row[1],
 				description = row[2],
-				user = await UsersService(handle=row[3], auth=user.token.token_string if user.token else None),
-				score = Score(
-					up = row[4],
-					down = row[5],
-					total = row[4] + row[5],
-				) if row[4] is not None else None,
-				rating = self._get_rating_map()[row[6]],
-				parent = row[7],
-				privacy = self._get_privacy_map()[row[11]],
-				created = row[8],
-				updated = row[9],
-				filename = row[10],
-				media_type = self._get_media_type_map()[row[12]],
+				user = await users[row[0]],
+				rating = self._get_rating_map()[row[4]],
+				parent = row[5],
+				privacy = Privacy.draft,
+				created = row[6],
+				updated = row[7],
+				filename = row[8],
+				media_type = self._get_media_type_map()[row[9]],
 				blocked = False,
-				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
+				size = PostSize(width=row[10], height=row[1]) if row[10] and row[11] else None,
 			)
 			for row in data
 		]
