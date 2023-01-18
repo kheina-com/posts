@@ -549,7 +549,7 @@ class Posts(SqlInterface) :
 				user=row[3],
 				rating=self._get_rating_map()[row[4]],
 				privacy=Privacy.public,
-				parent=post_id,
+				parent=post_id.int(),
 				created=row[5],
 				updated=row[6],
 				filename=row[7],

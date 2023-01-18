@@ -57,6 +57,10 @@ class PostId(str) :
 			raise NotImplementedError('value must be of type str, bytes, or int.')
 
 
+	def __int__(self: 'PostId') -> int :
+		return self.int()
+
+
 	@lru_cache(maxsize=128)
 	def int(self: 'PostId') -> int :
 		return int.from_bytes(b64decode(self), 'big')
