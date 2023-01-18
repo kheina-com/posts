@@ -13,7 +13,7 @@ from kh_common.utilities import flatten
 from pydantic import BaseModel
 
 from fuzzly_posts.blocking import Blocking
-from fuzzly_posts.models import MediaType, Post, PostSize, Score
+from fuzzly_posts.models import MediaType, Post, PostId, PostSize, Score
 from fuzzly_posts.scoring import Scoring
 
 
@@ -59,14 +59,15 @@ class InternalPost(BaseModel) :
 	size: Optional[PostSize]
 
 	async def post(self: 'InternalPost', user: KhUser) -> Post :
+		post_id: PostId = PostId(self.post_id)
 		uploader_task: Task[UserPortable] = ensure_future(UserGateway(handle=self.user))
-		score: Task[Score] = ensure_future(Scores._get_score(self.post_id))
-		vote: Task[int] = ensure_future(Scores._get_vote(self.user_id, self.post_id))
+		score: Task[Score] = ensure_future(Scores._get_score(post_id))
+		vote: Task[int] = ensure_future(Scores._get_vote(self.user_id, post_id))
 		uploader: UserPortable
 		blocked: bool = False
 
 		if user :
-			tags: TagGroups = ensure_future(TagsGateway(post_id=self.post_id))
+			tags: TagGroups = ensure_future(TagsGateway(post_id=post_id))
 			uploader = await uploader_task
 			blocked = await BlockCheck.isPostBlocked(user, uploader.handle, self.user_id, flatten(await tags))
 
@@ -77,7 +78,7 @@ class InternalPost(BaseModel) :
 		score.user_vote = await vote
 
 		return Post(
-			post_id=self.post_id,
+			post_id=post_id,
 			title=self.title,
 			description=self.description,
 			user=uploader,
