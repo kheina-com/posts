@@ -31,7 +31,10 @@ class PostId(str) :
 		# int.from_bytes(int.to_bytes(int_value, 8, 'big'), 'big', signed=True)
 		value_type: type = type(value)
 
-		if value_type == str :
+		if value_type == PostId :
+			return super(PostId, cls).__new__(cls, value)
+
+		elif value_type == str :
 			if not PostId.__str_format__.match(value) :
 				raise ValueError('str values must be in the format of /^[a-zA-Z0-9_-]{8}$/')
 
