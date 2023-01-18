@@ -17,7 +17,8 @@ from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
 from fuzzly_posts.blocking import Blocking
-from fuzzly_posts.models import InternalPost, MediaType, Post, PostId, PostSize, PostSort, Score
+from fuzzly_posts.models import MediaType, Post, PostId, PostSize, PostSort, Score
+from fuzzly_posts.models.internal import InternalPost
 from fuzzly_posts.scoring import Scoring
 from tags import Tags
 
