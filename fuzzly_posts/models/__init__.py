@@ -1,23 +1,26 @@
 from datetime import datetime
 from enum import Enum, unique
+from functools import lru_cache
 from re import Pattern
 from re import compile as re_compile
 from typing import List, Optional, Union
 
 from kh_common.base64 import b64decode, b64encode
-from kh_common.caching import ArgsCache
 from kh_common.config.constants import Environment, environment
 from kh_common.config.repo import short_hash
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
 from kh_common.models.user import UserPortable
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 class PostId(str) :
 	"""
 	automatically converts post ids in int, byte, or string format to their user-friendly str format.
 	also checks for valid values.
+
+	NOTE: when used in fastapi or pydantic ensure PostId is called directly. either through a validator or manually.
+	EX: _post_id_validator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
 	"""
 
 	__str_format__: Pattern = re_compile(r'^[a-zA-Z0-9_-]{8}$')
@@ -51,7 +54,7 @@ class PostId(str) :
 			raise NotImplementedError('value must be of type str, bytes, or int.')
 
 
-	@ArgsCache(60)
+	@lru_cache(maxsize=128)
 	def int(self: 'PostId') -> int :
 		return int.from_bytes(b64decode(self), 'big')
 
@@ -67,6 +70,8 @@ class PostSort(Enum) :
 
 
 class VoteRequest(BaseModel) :
+	_post_id_validator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
+
 	post_id: PostId
 	vote: Union[int, None]
 
@@ -85,6 +90,8 @@ class FetchPostsRequest(BaseFetchRequest) :
 
 
 class FetchCommentsRequest(BaseFetchRequest) :
+	_post_id_validator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
+
 	post_id: PostId
 
 
@@ -112,6 +119,8 @@ class PostSize(BaseModel) :
 
 
 class Post(BaseModel) :
+	_post_id_validator = validator('post_id', 'parent', pre=True, always=True, allow_reuse=True)(PostId)
+
 	post_id: PostId
 	title: Optional[str]
 	description: Optional[str]
