@@ -12,14 +12,13 @@ from kh_common.models.user import UserPortable
 from kh_common.utilities import flatten
 from pydantic import BaseModel
 
-from fuzzly_posts.blocking import Blocking
+from fuzzly_posts.blocking import is_post_blocked
 from fuzzly_posts.models import MediaType, Post, PostId, PostSize, Score
 from fuzzly_posts.scoring import Scoring
 
 
 UserGateway: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 Scores: Scoring = Scoring()
-BlockCheck: Blocking = Blocking()
 
 
 @unique
@@ -69,7 +68,7 @@ class InternalPost(BaseModel) :
 		if user :
 			tags: TagGroups = ensure_future(TagsGateway(post_id=post_id))
 			uploader = await uploader_task
-			blocked = await BlockCheck.isPostBlocked(user, uploader.handle, self.user_id, flatten(await tags))
+			blocked = await is_post_blocked(user, uploader.handle, self.user_id, flatten(await tags))
 
 		else :
 			uploader = await uploader_task

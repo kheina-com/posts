@@ -16,7 +16,7 @@ from kh_common.models.user import UserPortable
 from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
-from fuzzly_posts.blocking import Blocking
+from fuzzly_posts.blocking import is_post_blocked
 from fuzzly_posts.models import MediaType, Post, PostId, PostSize, PostSort, Score
 from fuzzly_posts.models.internal import InternalPost
 from fuzzly_posts.scoring import Scoring
@@ -27,7 +27,6 @@ TagService: Tags = Tags()
 UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 KVS: KeyValueStore = KeyValueStore('kheina', 'posts-v2')
 Scores: Scoring = Scoring()
-BlockCheck: Blocking = Blocking()
 
 
 class Posts(SqlInterface) :
@@ -705,7 +704,7 @@ class Posts(SqlInterface) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = await BlockCheck.isPostBlocked(user, row[3], row[15], await meta[row[0]]['tags']),
+				blocked = await is_post_blocked(user, row[3], row[15], await meta[row[0]]['tags']),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data
@@ -838,7 +837,7 @@ class Posts(SqlInterface) :
 				filename = row[10],
 				media_type = self._get_media_type_map()[row[11]],
 				privacy = Privacy.public,
-				blocked = await BlockCheck.isPostBlocked(user, row[3], row[15], await meta[row[0]]['tags']),
+				blocked = await is_post_blocked(user, row[3], row[15], await meta[row[0]]['tags']),
 				size = PostSize(width=row[13], height=row[14]) if row[13] and row[14] else None,
 			)
 			for row in data

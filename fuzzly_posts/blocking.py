@@ -88,23 +88,22 @@ class BlockTree :
 DefaultBlockTree: BlockTree = BlockTree()
 
 
-class Blocking :
-	@ArgsCache(5)
-	async def fetchBlockTree(user: KhUser) -> BlockTree :
-		if not user.token :
-			return DefaultBlockTree
+@ArgsCache(5)
+async def fetch_block_tree(user: KhUser) -> BlockTree :
+	if not user.token :
+		return DefaultBlockTree
 
-		# TODO: return underlying UserConfig here, once internal tokens are implemented
-		user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
-		tree: BlockTree = BlockTree()
-		tree.populate(user_config.blocked_tags or [])
-		return tree
+	# TODO: return underlying UserConfig here, once internal tokens are implemented
+	user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
+	tree: BlockTree = BlockTree()
+	tree.populate(user_config.blocked_tags or [])
+	return tree
 
 
-	async def isPostBlocked(user: KhUser, uploader: str, uploader_id: int, tags: Iterable[str]) -> bool :
-		block_tree: BlockTree = await Blocking.fetchBlockTree(user)
+async def is_post_blocked(user: KhUser, uploader: str, uploader_id: int, tags: Iterable[str]) -> bool :
+	block_tree: BlockTree = await fetch_block_tree(user)
 
-		tags: Set[str] = set(tags)
-		tags.add('@' + uploader)
+	tags: Set[str] = set(tags)
+	tags.add('@' + uploader)
 
-		return block_tree.blocked(tags)
+	return block_tree.blocked(tags)
