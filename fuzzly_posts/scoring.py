@@ -87,16 +87,21 @@ class Scoring(SqlInterface) :
 
 			transaction.commit()
 
+		score: Dict[str, int] = {
+			'up': up,
+			'down': down,
+			'total': total,
+		}
+		ScoreCache.put(post_id, score)
+
 		return Score(
-			up = up,
-			down = down,
-			total = total,
+			**score,
 			user_vote = 0 if upvote is None else (1 if upvote else -1),
 		)
 
 
 	@AerospikeCache('kheina', 'score', '{post_id}', _kvs=ScoreCache)
-	async def _get_score(self, post_id: PostId) -> Dict[str, int] :
+	async def _get_score(self, post_id: PostId) -> Optional[Dict[str, int]] :
 		data: List[int] = await self.query_async("""
 			SELECT
 				post_scores.upvotes,
@@ -109,12 +114,12 @@ class Scoring(SqlInterface) :
 		)
 
 		if not data :
-			raise NotFound(f'no data was found for the provided post id: {post_id}.')
+			return None
 
 		return  {
-			'up':data[0],
+			'up': data[0],
 			'down': data[1],
-			'total': data[0] + data[1],
+			'total': sum(data),
 		}
 
 
@@ -137,9 +142,14 @@ class Scoring(SqlInterface) :
 		return 1 if data[0] else -1
 
 
-	async def getScore(self, user: KhUser, post_id: PostId) -> Score :
-		score: Task[Score] = ensure_future(self._get_score(post_id))
+	async def getScore(self, user: KhUser, post_id: PostId) -> Optional[Score] :
+		score: Task[Dict[str, int]] = ensure_future(self._get_score(post_id))
 		vote: Task[int] = ensure_future(self._get_vote(user.user_id, post_id))
+
+		score: Optional[Dict[str, int]] = await score
+
+		if not score :
+			return None
 
 		return Score(
 			user_vote=await vote,
