@@ -13,6 +13,7 @@ from kh_common.utilities import flatten
 from pydantic import BaseModel
 
 from fuzzly_posts.blocking import Blocking
+from fuzzly_posts.models import MediaType, Post, PostSize, Score
 from fuzzly_posts.scoring import Scoring
 
 
