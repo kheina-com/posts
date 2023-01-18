@@ -25,7 +25,7 @@ from tags import Tags
 
 TagService: Tags = Tags()
 UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
-KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
+KVS: KeyValueStore = KeyValueStore('kheina', 'posts-v2')
 Scores: Scoring = Scoring()
 BlockCheck: Blocking = Blocking()
 
@@ -443,7 +443,7 @@ class Posts(SqlInterface) :
 		})
 
 
-	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=KVS)
+	@AerospikeCache('kheina', 'posts-v2', '{post_id}', _kvs=KVS)
 	async def _get_post(self, post_id: PostId) -> InternalPost :
 		data = self.query("""
 			SELECT
