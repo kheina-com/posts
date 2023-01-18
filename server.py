@@ -63,7 +63,8 @@ async def v1FetchComments(req: Request, body: FetchCommentsRequest) -> List[Post
 
 @app.get('/v1/post/{post_id}', responses={ 200: { 'model': Post } })
 async def v1GetPost(req: Request, post_id: PostId) -> Post :
-	return await posts.getPost(req.user, post_id)
+	# fastapi doesn't parse to PostId automatically, only str
+	return await posts.getPost(req.user, PostId(post_id))
 
 
 @app.post('/v1/fetch_user_posts', responses={ 200: { 'model': List[Post] } })
