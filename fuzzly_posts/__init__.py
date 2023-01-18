@@ -6,8 +6,8 @@ from kh_common.gateway import Gateway
 from fuzzly_posts.models import Post
 
 
-__version__: str = '0.1.1'
+__version__: str = '0.1.2'
 
 
-PostGateway: Gateway = Gateway(posts_host + '/v1/post/{post}', Post, 'GET')
+PostGateway: Gateway = Gateway(posts_host + '/v1/post/{post}', Post, method='GET')
 MyPostsGateway: Gateway = Gateway(posts_host + '/v1/fetch_my_posts', List[Post], method='POST')

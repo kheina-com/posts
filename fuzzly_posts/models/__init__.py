@@ -62,6 +62,9 @@ class PostId(str) :
 		return int.from_bytes(b64decode(self), 'big')
 
 
+PostIdValidator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
+
+
 @unique
 class PostSort(Enum) :
 	new: str = 'new'
@@ -73,7 +76,7 @@ class PostSort(Enum) :
 
 
 class VoteRequest(BaseModel) :
-	_post_id_validator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
+	_post_id_validator = PostIdValidator
 
 	post_id: PostId
 	vote: Union[int, None]
@@ -93,7 +96,7 @@ class FetchPostsRequest(BaseFetchRequest) :
 
 
 class FetchCommentsRequest(BaseFetchRequest) :
-	_post_id_validator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
+	_post_id_validator = PostIdValidator
 
 	post_id: PostId
 
@@ -122,7 +125,7 @@ class PostSize(BaseModel) :
 
 
 class Post(BaseModel) :
-	_post_id_validator = validator('post_id', 'parent', pre=True, always=True, allow_reuse=True)(PostId)
+	_post_id_validator = PostIdValidator
 
 	post_id: PostId
 	title: Optional[str]
@@ -138,6 +141,11 @@ class Post(BaseModel) :
 	media_type: Optional[MediaType]
 	size: Optional[PostSize]
 	blocked: bool
+
+	@validator('parent', pre=True, always=True)
+	def _parent_validator(value) :
+		if value :
+			return PostId(value)
 
 
 RssFeed = f"""<rss version="2.0">
