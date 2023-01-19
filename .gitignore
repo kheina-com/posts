@@ -53,3 +53,7 @@ dist
 
 # pytest files
 .coverage
+
+# cython compiled files
+*.c
+*.so
