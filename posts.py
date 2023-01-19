@@ -18,13 +18,13 @@ from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, T
 
 from fuzzly_posts.blocking import is_post_blocked
 from fuzzly_posts.models import MediaType, Post, PostId, PostSize, PostSort, Score
-from fuzzly_posts.models.internal import InternalPost, Scores
+from fuzzly_posts.internal import InternalPost, Scores
 from tags import Tags
 
 
 TagService: Tags = Tags()
 UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
-KVS: KeyValueStore = KeyValueStore('kheina', 'posts-v2')
+KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 
 
 class Posts(SqlInterface) :
