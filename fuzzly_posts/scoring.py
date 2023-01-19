@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache
 from kh_common.caching.key_value_store import KeyValueStore
-from kh_common.exceptions.http_error import BadRequest, NotFound
+from kh_common.exceptions.http_error import BadRequest
 from kh_common.scoring import confidence
 from kh_common.scoring import controversial as calc_cont
 from kh_common.scoring import hot as calc_hot
