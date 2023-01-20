@@ -94,9 +94,12 @@ class Scoring(SqlInterface) :
 		}
 		ScoreCache.put(post_id, score)
 
+		user_vote = 0 if upvote is None else (1 if upvote else -1)
+		VoteCache.put(f'{user.user_id}.{post_id}', user_vote)
+
 		return Score(
 			**score,
-			user_vote = 0 if upvote is None else (1 if upvote else -1),
+			user_vote = user_vote,
 		)
 
 
@@ -123,7 +126,7 @@ class Scoring(SqlInterface) :
 		}
 
 
-	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=ScoreCache)
+	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=VoteCache)
 	async def _get_vote(self, user: int, post_id: PostId) -> int :
 		data: List[int] = await self.query_async("""
 			SELECT
