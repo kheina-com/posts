@@ -637,7 +637,7 @@ class Posts(SqlInterface) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
 
 		if posts :
 			await wait(posts)
@@ -684,7 +684,7 @@ class Posts(SqlInterface) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
 
 		if posts :
 			await wait(posts)
@@ -786,6 +786,16 @@ class Posts(SqlInterface) :
 					Field('users', 'user_id'),
 				),
 			),
+			Join(
+				JoinType.left,
+				Table('kheina.public.post_scores'),
+			).where(
+				Where(
+					Field('post_scores', 'post_id'),
+					Operator.equal,
+					Field('posts', 'post_id'),
+				),
+			),
 		).where(
 			Where(
 				Field('posts', 'uploader'),
@@ -815,7 +825,7 @@ class Posts(SqlInterface) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
 
 		if posts :
 			await wait(posts)
@@ -857,7 +867,7 @@ class Posts(SqlInterface) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
 
 		if posts :
 			await wait(posts)
