@@ -5,7 +5,8 @@ from typing import Dict, Iterable, List, Optional
 
 from aiohttp import ClientResponseError
 from fuzzly_users.api import UserClient
-from fuzzly_users.models import InternalUser, UserPortable
+from fuzzly_users.internal import InternalUser
+from fuzzly_users.models import UserPortable
 from kh_common.auth import KhUser
 from kh_common.config.constants import tags_host
 from kh_common.config.credentials import fuzzly_client_token

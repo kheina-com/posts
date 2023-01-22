@@ -1,8 +1,8 @@
 from typing import List
 
-from fuzzly_posts.constants import Host
 from kh_common.gateway import Gateway
 
+from fuzzly_posts.constants import Host
 from fuzzly_posts.internal import Post
 
 
