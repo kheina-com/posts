@@ -13,7 +13,6 @@ from kh_common.config.credentials import fuzzly_client_token
 from kh_common.gateway import Gateway
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
-from kh_common.models.user import UserPortable
 from kh_common.utilities import flatten
 from pydantic import BaseModel, validator
 
