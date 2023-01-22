@@ -9,7 +9,8 @@ from kh_common.gateway import Gateway
 from kh_common.models.user import User
 from kh_common.server import Request, Response, ServerApp
 
-from fuzzly_posts.models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, Post, PostId, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, Score, TimelineRequest, VoteRequest
+from fuzzly_posts.internal import Post
+from fuzzly_posts.models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, PostId, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, Score, TimelineRequest, VoteRequest
 from fuzzly_posts.scoring import Scoring
 from posts import Posts
 
