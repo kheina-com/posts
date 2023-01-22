@@ -1,9 +1,8 @@
 from asyncio import Task, ensure_future, wait
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
-from fuzzly_users.models import UserPortable
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
@@ -14,7 +13,6 @@ from kh_common.models.rating import Rating
 from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
-from fuzzly_posts.blocking import is_post_blocked
 from fuzzly_posts.internal import InternalPost, Post, Scores
 from fuzzly_posts.models import MediaType, PostId, PostSize, PostSort, Score
 from tags import Tags
@@ -448,7 +446,7 @@ class Posts(SqlInterface) :
 		})
 
 
-	@AerospikeCache('kheina', 'posts-v2', '{post_id}', _kvs=KVS)
+	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=KVS)
 	async def _get_post(self, post_id: PostId) -> InternalPost :
 		data = self.query("""
 			SELECT
