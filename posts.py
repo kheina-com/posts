@@ -1,29 +1,26 @@
 from asyncio import Task, ensure_future, wait
 from collections import defaultdict
 from datetime import timedelta
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
+from fuzzly_users.models import UserPortable
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
-from kh_common.config.constants import users_host
 from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
-from kh_common.gateway import Gateway
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
-from kh_common.models.user import UserPortable
 from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
 from fuzzly_posts.blocking import is_post_blocked
-from fuzzly_posts.models import MediaType, Post, PostId, PostSize, PostSort, Score
 from fuzzly_posts.internal import InternalPost, Scores
+from fuzzly_posts.models import MediaType, Post, PostId, PostSize, PostSort, Score
 from tags import Tags
 
 
 TagService: Tags = Tags()
-UsersService: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 
 

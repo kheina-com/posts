@@ -4,8 +4,11 @@ from enum import Enum, unique
 from typing import Dict, Iterable, List, Optional
 
 from aiohttp import ClientResponseError
+from fuzzly_users.api import UserClient
+from fuzzly_users.models import InternalUser, UserPortable
 from kh_common.auth import KhUser
-from kh_common.config.constants import tags_host, users_host
+from kh_common.config.constants import tags_host
+from kh_common.config.credentials import fuzzly_client_token
 from kh_common.gateway import Gateway
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
@@ -14,12 +17,12 @@ from kh_common.utilities import flatten
 from pydantic import BaseModel
 
 from fuzzly_posts.blocking import is_post_blocked
-from fuzzly_posts.scoring import Scoring
 from fuzzly_posts.models import MediaType, Post, PostId, PostSize, Score
+from fuzzly_posts.scoring import Scoring
 
 
-UserGateway: Gateway = Gateway(users_host + '/v1/fetch_user/{handle}', UserPortable)
 Scores: Scoring = Scoring()
+user_client: UserClient = UserClient(fuzzly_client_token, internal=True)
 
 
 @unique
@@ -69,9 +72,15 @@ class InternalPost(BaseModel) :
 	media_type: Optional[MediaType]
 	size: Optional[PostSize]
 
+
+	async def user_portable(self: 'InternalPost', user: KhUser) -> UserPortable :
+		iuser: InternalUser = await user_client._user(user_id=self.user_id)
+		return await iuser.portable(user)
+
+
 	async def post(self: 'InternalPost', user: KhUser) -> Post :
 		post_id: PostId = PostId(self.post_id)
-		uploader_task: Task[UserPortable] = ensure_future(UserGateway(handle=self.user))
+		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(user))
 		score: Task[Score] = ensure_future(Scores.getScore(user, post_id))
 		uploader: UserPortable
 		blocked: bool = False

@@ -1,14 +1,18 @@
 from typing import Dict, Iterable, Set
 
-from fuzzly_configs import UserConfigGateway
-from fuzzly_configs.models import UserConfigResponse
+from fuzzly_configs.api import ConfigClient
+from fuzzly_configs.models import UserConfig
 from kh_common.auth import KhUser
 from kh_common.caching import ArgsCache
+from kh_common.config.credentials import fuzzly_client_token
+
+
+config_client: ConfigClient = ConfigClient(fuzzly_client_token, internal=True)
 
 
 class BlockTree :
 
-	def dict(self) :
+	def dict(self: 'BlockTree') :
 		result = { }
 
 		if not self.match and not self.nomatch :
@@ -23,13 +27,13 @@ class BlockTree :
 		return result
 
 
-	def __init__(self) :
+	def __init__(self: 'BlockTree') :
 		self.tags: Set[str] = None
 		self.match: Dict[str, BlockTree] = None
 		self.nomatch: Dict[str, BlockTree] = None
 
 
-	def populate(self, tags: Iterable[Iterable[str]]) :
+	def populate(self: 'BlockTree', tags: Iterable[Iterable[str]]) :
 		for tag_set in tags :
 			tree: BlockTree = self
 
@@ -58,7 +62,7 @@ class BlockTree :
 				tree = tree[tag]
 
 
-	def blocked(self, tags: Iterable[str]) -> bool :
+	def blocked(self: 'BlockTree', tags: Iterable[str]) -> bool :
 		if not self.match and not self.nomatch :
 			return False
 
@@ -66,7 +70,7 @@ class BlockTree :
 		return self._blocked(self)
 
 
-	def _blocked(self, tree: 'BlockTree') -> bool :
+	def _blocked(self: 'BlockTree', tree: 'BlockTree') -> bool :
 		# TODO: it really feels like there's a better way to do this check
 		if not tree.match and not tree.nomatch :
 			return True
@@ -94,7 +98,7 @@ async def fetch_block_tree(user: KhUser) -> BlockTree :
 		return DefaultBlockTree
 
 	# TODO: return underlying UserConfig here, once internal tokens are implemented
-	user_config: UserConfigResponse = await UserConfigGateway(auth=user.token.token_string)
+	user_config: UserConfig = await config_client._config(user_id=user.user_id)
 	tree: BlockTree = BlockTree()
 	tree.populate(user_config.blocked_tags or [])
 	return tree

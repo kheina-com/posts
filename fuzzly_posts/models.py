@@ -5,15 +5,13 @@ from re import Pattern
 from re import compile as re_compile
 from typing import List, Optional, Union
 
+from fuzzly_users.models import UserPortable
 from kh_common.base64 import b64decode, b64encode
 from kh_common.config.constants import Environment, environment
 from kh_common.config.repo import short_hash
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
-from kh_common.models.user import UserPortable
 from pydantic import BaseModel, validator
-
-from fuzzly_posts.integer import convert_uint_int
 
 
 class PostId(str) :

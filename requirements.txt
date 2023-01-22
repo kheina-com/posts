@@ -1,2 +1,5 @@
-kh-common[aerospike,auth,logging,scoring,sql]~=0.6.6
-fuzzly-configs~=0.0.3
+kh-common[aerospike,auth,logging,sql]~=0.6.7
+fuzzly-configs~=0.0.4
+fuzzly_users~=0.0.3
+gunicorn~=20.1.0
+scipy~=1.5.2
