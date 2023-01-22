@@ -58,7 +58,7 @@ class Posts(SqlInterface) :
 					media_type=self._get_media_type_map()[row[9]],
 					user_id=row[12],
 					size=PostSize(width=row[10], height=row[11]) if row[10] and row[11] else None,
-					privacy=self._get_privacy_map()[data[13]],
+					privacy=self._get_privacy_map()[row[13]],
 				)
 				posts.append(post)
 				KVS.put(post.post_id, post)
