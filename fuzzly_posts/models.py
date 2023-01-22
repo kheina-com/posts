@@ -58,7 +58,7 @@ class PostId(str) :
 
 	@lru_cache(maxsize=128)
 	def int(self: 'PostId') -> int :
-		return convert_uint_int(int.from_bytes(b64decode(self), 'big'))
+		return int.from_bytes(b64decode(self), 'big')
 
 
 PostIdValidator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
