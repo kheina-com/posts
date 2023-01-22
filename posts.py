@@ -15,8 +15,8 @@ from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
 from fuzzly_posts.blocking import is_post_blocked
-from fuzzly_posts.internal import InternalPost, Scores
-from fuzzly_posts.models import MediaType, Post, PostId, PostSize, PostSort, Score
+from fuzzly_posts.internal import InternalPost, Post, Scores
+from fuzzly_posts.models import MediaType, PostId, PostSize, PostSort, Score
 from tags import Tags
 
 

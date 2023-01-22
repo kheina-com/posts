@@ -14,10 +14,10 @@ from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
 from kh_common.models.user import UserPortable
 from kh_common.utilities import flatten
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 from fuzzly_posts.blocking import is_post_blocked
-from fuzzly_posts.models import MediaType, Post, PostId, PostSize, Score
+from fuzzly_posts.models import MediaType, PostId, PostIdValidator, PostSize, Score
 from fuzzly_posts.scoring import Scoring
 
 
@@ -55,6 +55,30 @@ async def _get_tags(post_id: PostId) -> Iterable[str] :
 			raise
 
 		return []
+
+
+class Post(BaseModel) :
+	_post_id_validator = PostIdValidator
+
+	post_id: PostId
+	title: Optional[str]
+	description: Optional[str]
+	user: UserPortable
+	score: Optional[Score]
+	rating: Rating
+	parent: Optional[PostId]
+	privacy: Privacy
+	created: Optional[datetime]
+	updated: Optional[datetime]
+	filename: Optional[str]
+	media_type: Optional[MediaType]
+	size: Optional[PostSize]
+	blocked: bool
+
+	@validator('parent', pre=True, always=True)
+	def _parent_validator(value) :
+		if value :
+			return PostId(value)
 
 
 class InternalPost(BaseModel) :

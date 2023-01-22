@@ -1,16 +1,12 @@
-from datetime import datetime
 from enum import Enum, unique
 from functools import lru_cache
 from re import Pattern
 from re import compile as re_compile
 from typing import List, Optional, Union
 
-from fuzzly_users.models import UserPortable
 from kh_common.base64 import b64decode, b64encode
 from kh_common.config.constants import Environment, environment
 from kh_common.config.repo import short_hash
-from kh_common.models.privacy import Privacy
-from kh_common.models.rating import Rating
 from pydantic import BaseModel, validator
 
 
@@ -125,30 +121,6 @@ class MediaType(BaseModel) :
 class PostSize(BaseModel) :
 	width: int
 	height: int
-
-
-class Post(BaseModel) :
-	_post_id_validator = PostIdValidator
-
-	post_id: PostId
-	title: Optional[str]
-	description: Optional[str]
-	user: UserPortable
-	score: Optional[Score]
-	rating: Rating
-	parent: Optional[PostId]
-	privacy: Privacy
-	created: Optional[datetime]
-	updated: Optional[datetime]
-	filename: Optional[str]
-	media_type: Optional[MediaType]
-	size: Optional[PostSize]
-	blocked: bool
-
-	@validator('parent', pre=True, always=True)
-	def _parent_validator(value) :
-		if value :
-			return PostId(value)
 
 
 RssFeed = f"""<rss version="2.0">
