@@ -52,13 +52,13 @@ class Posts(SqlInterface) :
 					user=row[3],
 					rating=self._get_rating_map()[row[4]],
 					parent=row[5],
-					privacy=Privacy.public,
 					created=row[6],
 					updated=row[7],
 					filename=row[8],
 					media_type=self._get_media_type_map()[row[9]],
 					user_id=row[12],
 					size=PostSize(width=row[10], height=row[11]) if row[10] and row[11] else None,
+					privacy=self._get_privacy_map()[data[13]],
 				)
 				posts.append(post)
 				KVS.put(post.post_id, post)
@@ -81,6 +81,7 @@ class Posts(SqlInterface) :
 			Field('posts', 'width'),
 			Field('posts', 'height'),
 			Field('users', 'user_id'),
+			Field('posts', 'privacy_id'),
 		)
 
 		return self.parse_response
