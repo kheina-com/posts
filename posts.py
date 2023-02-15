@@ -3,6 +3,8 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Any, Callable, List, Optional, Tuple
 
+from fuzzly.internal import InternalClient
+from kh_common.config.credentials import fuzzly_client_token
 from fuzzly.models.internal import InternalPost, PostKVS
 from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
 from kh_common.auth import KhUser
@@ -12,6 +14,9 @@ from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFou
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
 from scoring import Scoring
+
+
+client: InternalClient = InternalClient(fuzzly_client_token)
 
 
 class Posts(Scoring) :
@@ -381,7 +386,7 @@ class Posts(Scoring) :
 		self._validateCount(count)
 
 		posts: Task[List[InternalPost]] = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in await posts]
 
 		if posts :
 			await wait(posts)
@@ -496,7 +501,7 @@ class Posts(Scoring) :
 			(post.user_id == user.user_id and await user.authenticated(raise_error=False))
 			# add additional check here to see if post is private, but user was given permission to view
 		) :
-			return await post.post(user)
+			return await post.post(client, user)
 
 		raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
@@ -566,7 +571,7 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in await self._getComments(post_id, sort, count, page)]
+		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in await self._getComments(post_id, sort, count, page)]
 
 		if posts :
 			await wait(posts)
@@ -628,7 +633,7 @@ class Posts(Scoring) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
 
 		if posts :
 			await wait(posts)
@@ -675,7 +680,7 @@ class Posts(Scoring) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
 
 		if posts :
 			await wait(posts)
@@ -750,7 +755,7 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: List[Task[Post]] = [ensure_future(post.post(user)) for post in await self._fetch_user_posts(handle, count, page)]
+		posts: List[Task[Post]] = [ensure_future(post.post(client, user)) for post in await self._fetch_user_posts(handle, count, page)]
 
 		if posts :
 			await wait(posts)
@@ -820,7 +825,7 @@ class Posts(Scoring) :
 		self._validateCount(count)
 
 		posts: List[InternalPost] = await self._fetch_own_posts(user.user_id, sort, count, page)
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
 
 		if posts :
 			await wait(posts)
@@ -862,7 +867,7 @@ class Posts(Scoring) :
 
 		parser = self.internal_select(query)
 		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
+		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
 
 		if posts :
 			await wait(posts)
