@@ -4,13 +4,11 @@ from datetime import timedelta
 from typing import Any, Callable, List, Optional, Tuple
 
 from fuzzly.models.internal import InternalPost, PostKVS
-from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Score
+from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
-from kh_common.models.privacy import Privacy
-from kh_common.models.rating import Rating
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
 from scoring import Scoring
