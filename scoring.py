@@ -2,11 +2,10 @@ from asyncio import Task, ensure_future
 from math import log10, sqrt
 from typing import Dict, List, Optional, Union
 
-from fuzzly.models.internal import InternalScore
+from fuzzly.models._database import DBI, ScoreCache, VoteCache
 from fuzzly.models.post import PostId, Score
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache
-from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.config.constants import epoch
 from kh_common.exceptions.http_error import BadRequest
 from kh_common.sql import SqlInterface
@@ -59,11 +58,7 @@ def best(up: int, total: int) -> float :
 	return s - (s - 0.5) * 2**(-log10(total + 1))
 
 
-ScoreCache: KeyValueStore = KeyValueStore('kheina', 'score')
-VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
-
-
-class Scoring(SqlInterface) :
+class Scoring(DBI) :
 
 	def _validateVote(self, vote: Optional[bool]) -> None :
 		if not isinstance(vote, (bool, type(None))) :
@@ -146,61 +141,4 @@ class Scoring(SqlInterface) :
 		return Score(
 			**score,
 			user_vote = user_vote,
-		)
-
-
-	@AerospikeCache('kheina', 'score', '{post_id}', _kvs=ScoreCache)
-	async def _get_score(self, post_id: PostId) -> Optional[InternalScore] :
-		data: List[int] = await self.query_async("""
-			SELECT
-				post_scores.upvotes,
-				post_scores.downvotes
-			FROM kheina.public.post_scores
-			WHERE post_scores.post_id = %s
-			""",
-			(post_id.int(),),
-			fetch_one=True,
-		)
-
-		if not data :
-			return None
-
-		return InternalScore(
-			up=data[0],
-			down=data[1],
-			total=sum(data),
-		)
-
-
-	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=VoteCache)
-	async def _get_vote(self, user: int, post_id: PostId) -> int :
-		data: List[int] = await self.query_async("""
-			SELECT
-				upvote
-			FROM kheina.public.post_votes
-			WHERE post_votes.user_id = %s
-				AND post_votes.post_id = %s;
-			""",
-			(user, post_id.int()),
-			fetch_one=True,
-		)
-
-		if not data :
-			return 0
-
-		return 1 if data[0] else -1
-
-
-	async def getScore(self, user: KhUser, post_id: PostId) -> Optional[Score] :
-		score: Task[Dict[str, int]] = ensure_future(self._get_score(post_id))
-		vote: Task[int] = ensure_future(self._get_vote(user.user_id, post_id))
-
-		score: Optional[Dict[str, int]] = await score
-
-		if not score :
-			return None
-
-		return Score(
-			user_vote=await vote,
-			**score,
 		)

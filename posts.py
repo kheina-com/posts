@@ -7,7 +7,6 @@ from fuzzly.models.internal import InternalPost, PostKVS
 from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Score
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
-from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from kh_common.models.privacy import Privacy
