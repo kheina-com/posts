@@ -3,6 +3,8 @@ from html import escape
 from typing import List
 from urllib.parse import quote
 
+from fuzzly.models.internal import InternalPost
+from fuzzly.models.post import Post, PostId, Score
 from kh_common.backblaze import B2Interface
 from kh_common.config.constants import environment, users_host
 from kh_common.gateway import Gateway
@@ -10,9 +12,7 @@ from kh_common.models.auth import Scope
 from kh_common.models.user import User
 from kh_common.server import Request, Response, ServerApp
 
-from fuzzly_posts.internal import InternalPost, Post
-from fuzzly_posts.models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, PostId, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, Score, TimelineRequest, VoteRequest
-from fuzzly_posts.scoring import Scoring
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, TimelineRequest, VoteRequest
 from posts import Posts
 
 
@@ -38,7 +38,6 @@ app = ServerApp(
 b2 = B2Interface()
 posts = Posts()
 UsersService = Gateway(users_host + '/v1/fetch_self', User)
-Scores: Scoring = Scoring()
 
 
 @app.on_event('shutdown')
@@ -51,6 +50,26 @@ async def shutdown() :
 async def i1Post(req: Request, post_id: PostId) -> InternalPost :
 	await req.user.verify_scope(Scope.internal)
 	return await posts._get_post(PostId(post_id))
+
+
+@app.post('/i1/user/{user_id}', response_model=List[InternalPost])
+async def i1User(req: Request, user_id: int, body: BaseFetchRequest) -> List[InternalPost] :
+	await req.user.verify_scope(Scope.internal)
+	return await posts._fetch_own_posts(user_id, body.sort, body.count, body.page)
+
+
+@app.get('/i1/score/{post_id}', response_model=InternalPost)
+async def i1Score(req: Request, post_id: PostId, ) -> InternalPost :
+	await req.user.verify_scope(Scope.internal)
+	# TODO: this needs to be replaced with a model and updated above
+	return await posts._get_score(PostId(post_id))
+
+
+@app.get('/i1/vote/{post_id}/{user_id}', response_model=InternalPost)
+async def i1Vote(req: Request, post_id: PostId, user_id: int) -> InternalPost :
+	await req.user.verify_scope(Scope.internal)
+	# TODO: this needs to be replaced with a model and updated above
+	return await posts._get_vote(user_id, PostId(post_id))
 
 
 ##################################################  PUBLIC  ##################################################

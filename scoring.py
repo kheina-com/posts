@@ -2,6 +2,8 @@ from asyncio import Task, ensure_future
 from math import log10, sqrt
 from typing import Dict, List, Optional, Union
 
+from fuzzly.models.internal import InternalScore
+from fuzzly.models.post import PostId, Score
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache
 from kh_common.caching.key_value_store import KeyValueStore
@@ -9,8 +11,6 @@ from kh_common.config.constants import epoch
 from kh_common.exceptions.http_error import BadRequest
 from kh_common.sql import SqlInterface
 from scipy.stats import norm
-
-from fuzzly_posts.models import PostId, Score
 
 
 """
@@ -70,7 +70,7 @@ class Scoring(SqlInterface) :
 			raise BadRequest('the given vote is invalid (vote value must be integer. 1 = up, -1 = down, 0 or null to remove vote)')
 
 
-	def vote(self, user: KhUser, post_id: PostId, upvote: Optional[bool]) -> Score :
+	def _vote(self, user: KhUser, post_id: PostId, upvote: Optional[bool]) -> Score :
 		self._validateVote(upvote)
 		with self.transaction() as transaction :
 			data = transaction.query("""
@@ -115,7 +115,7 @@ class Scoring(SqlInterface) :
 				(post_id, upvotes, downvotes, top, hot, best, controversial)
 				VALUES
 				(%s, %s, %s, %s, %s, %s, %s)
-				ON CONFLICT ON CONSTRAINT post_scores_pkey DO 
+				ON CONFLICT ON CONSTRAINT post_scores_pkey DO
 					UPDATE SET
 						upvotes = %s,
 						downvotes = %s,
@@ -150,7 +150,7 @@ class Scoring(SqlInterface) :
 
 
 	@AerospikeCache('kheina', 'score', '{post_id}', _kvs=ScoreCache)
-	async def _get_score(self, post_id: PostId) -> Optional[Dict[str, int]] :
+	async def _get_score(self, post_id: PostId) -> Optional[InternalScore] :
 		data: List[int] = await self.query_async("""
 			SELECT
 				post_scores.upvotes,
@@ -165,11 +165,11 @@ class Scoring(SqlInterface) :
 		if not data :
 			return None
 
-		return  {
-			'up': data[0],
-			'down': data[1],
-			'total': sum(data),
-		}
+		return InternalScore(
+			up=data[0],
+			down=data[1],
+			total=sum(data),
+		)
 
 
 	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=VoteCache)

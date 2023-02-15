@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from fuzzly_posts.models import PostId
+from models import PostId
 
 
 @pytest.mark.parametrize(

@@ -3,6 +3,8 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Any, Callable, List, Optional, Tuple
 
+from fuzzly.models.internal import InternalPost, PostKVS
+from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Score
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
@@ -10,19 +12,12 @@ from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from kh_common.models.privacy import Privacy
 from kh_common.models.rating import Rating
-from kh_common.sql import SqlInterface
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
-from fuzzly_posts.internal import InternalPost, Post, Scores
-from fuzzly_posts.models import MediaType, PostId, PostSize, PostSort, Score
-from tags import Tags
+from scoring import Scoring
 
 
-TagService: Tags = Tags()
-KVS: KeyValueStore = KeyValueStore('kheina', 'posts')
-
-
-class Posts(SqlInterface) :
+class Posts(Scoring) :
 
 	def _validatePageNumber(self, page_number: int) :
 		if page_number < 1 :
@@ -36,10 +31,10 @@ class Posts(SqlInterface) :
 
 	@HttpErrorHandler('processing vote')
 	def vote(self, user: KhUser, post_id: str, upvote: Optional[bool]) -> Score :
-		return Scores.vote(user, post_id, upvote)
+		return self._vote(user, post_id, upvote)
 
 
-	def parse_response(self, data) -> List[InternalPost] :
+	def parse_response(self, data: List[List[Any]]) -> List[InternalPost] :
 			posts: List[InternalPost] = []
 
 			for row in data :
@@ -59,12 +54,12 @@ class Posts(SqlInterface) :
 					privacy=self._get_privacy_map()[row[13]],
 				)
 				posts.append(post)
-				KVS.put(post.post_id, post)
+				PostKVS.put(post.post_id, post)
 
 			return posts
 
 
-	def internal_select(self, query: Query) -> Callable[[List[Any]], List[InternalPost]] :
+	def internal_select(self, query: Query) -> Callable[[List[List[Any]]], List[InternalPost]] :
 		query.select(
 			Field('posts', 'post_id'),
 			Field('posts', 'title'),
@@ -446,7 +441,7 @@ class Posts(SqlInterface) :
 		})
 
 
-	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=KVS)
+	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=PostKVS)
 	async def _get_post(self, post_id: PostId) -> InternalPost :
 		data = self.query("""
 			SELECT
@@ -564,7 +559,7 @@ class Posts(SqlInterface) :
 				size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
 			)
 			posts.append(post)
-			KVS.put(post.post_id, post)
+			PostKVS.put(post.post_id, post)
 
 		return posts
 
@@ -748,7 +743,7 @@ class Posts(SqlInterface) :
 				parent=row[12],
 			)
 			posts.append(post)
-			KVS.put(post.post_id, post)
+			PostKVS.put(post.post_id, post)
 
 		return posts
 
@@ -766,12 +761,7 @@ class Posts(SqlInterface) :
 		return list(map(Task.result, posts))
 
 
-	@HttpErrorHandler("retrieving user's own posts")
-	@ArgsCache(5)
-	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) :
-		self._validatePageNumber(page)
-		self._validateCount(count)
-
+	async def _fetch_own_posts(self, user_id: int, sort: PostSort, count: int, page: int) -> List[InternalPost] :
 		query = Query(
 			Table('kheina.public.posts')
 		).join(
@@ -799,7 +789,7 @@ class Posts(SqlInterface) :
 			Where(
 				Field('posts', 'uploader'),
 				Operator.equal,
-				Value(user.user_id),				
+				Value(user_id),				
 			),
 		).limit(
 			count,
@@ -823,7 +813,16 @@ class Posts(SqlInterface) :
 			)
 
 		parser = self.internal_select(query)
-		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
+		return parser(await self.query_async(query, fetch_all=True))
+
+
+	@HttpErrorHandler("retrieving user's own posts")
+	@ArgsCache(5)
+	async def fetchOwnPosts(self, user: KhUser, sort: PostSort, count: int, page: int) -> List[Post] :
+		self._validatePageNumber(page)
+		self._validateCount(count)
+
+		posts: List[InternalPost] = await self._fetch_own_posts(user.user_id, sort, count, page)
 		posts: Task[List[Post]] = [ensure_future(post.post(user)) for post in posts]
 
 		if posts :
