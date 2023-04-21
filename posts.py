@@ -44,16 +44,15 @@ class Posts(Scoring) :
 					post_id=row[0],
 					title=row[1],
 					description=row[2],
-					user=row[3],
-					rating=self._get_rating_map()[row[4]],
-					parent=row[5],
-					created=row[6],
-					updated=row[7],
-					filename=row[8],
-					media_type=self._get_media_type_map()[row[9]],
-					user_id=row[12],
-					size=PostSize(width=row[10], height=row[11]) if row[10] and row[11] else None,
-					privacy=self._get_privacy_map()[row[13]],
+					rating=self._get_rating_map()[row[3]],
+					parent=row[4],
+					created=row[5],
+					updated=row[6],
+					filename=row[7],
+					media_type=self._get_media_type_map()[row[8]],
+					user_id=row[11],
+					size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
+					privacy=self._get_privacy_map()[row[12]],
 				)
 				posts.append(post)
 				PostKVS.put(post.post_id, post)
@@ -66,7 +65,6 @@ class Posts(Scoring) :
 			Field('posts', 'post_id'),
 			Field('posts', 'title'),
 			Field('posts', 'description'),
-			Field('users', 'handle'),
 			Field('posts', 'rating'),
 			Field('posts', 'parent'),
 			Field('posts', 'created_on'),
@@ -75,7 +73,7 @@ class Posts(Scoring) :
 			Field('posts', 'media_type_id'),
 			Field('posts', 'width'),
 			Field('posts', 'height'),
-			Field('users', 'user_id'),
+			Field('posts', 'uploader'),
 			Field('posts', 'privacy_id'),
 		)
 
@@ -598,25 +596,12 @@ class Posts(Scoring) :
 					Field('posts', 'uploader'),
 				),
 			),
-			Join(
-				JoinType.inner,
-				Table('kheina.public.users'),
-			).where(
-				Where(
-					Field('users', 'user_id'),
-					Operator.equal,
-					Field('posts', 'uploader'),
-				),
-			),
 		).where(
 			Where(
 				Field('posts', 'privacy_id'),
 				Operator.equal,
 				"privacy_to_id('public')"
 			),
-		).group(
-			Field('post_scores', 'post_id'),
-			Field('users', 'user_id'),
 		).order(
 			Field('posts', 'created_on'),
 			Order.descending_nulls_first,
@@ -627,13 +612,9 @@ class Posts(Scoring) :
 		)
 
 		parser = self.internal_select(query)
-		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
+		posts: InternalPosts = InternalPosts(post_list=parser(await self.query_async(query, fetch_all=True)))
 
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		return await posts.posts(client, user)
 
 
 	@ArgsCache(10)
@@ -674,13 +655,9 @@ class Posts(Scoring) :
 		)
 
 		parser = self.internal_select(query)
-		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
+		posts: InternalPosts = InternalPosts(post_list=parser(await self.query_async(query, fetch_all=True)))
 
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		return now, await posts.posts(client, user)
 
 
 	@ArgsCache(5)
