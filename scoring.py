@@ -1,3 +1,4 @@
+from asyncio import ensure_future
 from math import log10, sqrt
 from typing import Dict, Optional, Union
 
@@ -62,10 +63,10 @@ class Scoring(DBI) :
 			raise BadRequest('the given vote is invalid (vote value must be integer. 1 = up, -1 = down, 0 or null to remove vote)')
 
 
-	def _vote(self, user: KhUser, post_id: PostId, upvote: Optional[bool]) -> Score :
+	async def _vote(self, user: KhUser, post_id: PostId, upvote: Optional[bool]) -> Score :
 		self._validateVote(upvote)
 		with self.transaction() as transaction :
-			data = transaction.query("""
+			data = await transaction.query_async("""
 				INSERT INTO kheina.public.post_votes
 				(user_id, post_id, upvote)
 				VALUES
@@ -102,7 +103,7 @@ class Scoring(DBI) :
 			best: float = confidence(up, total)
 			cont: float = controversial(up, down)
 
-			transaction.query("""
+			await transaction.query_async("""
 				INSERT INTO kheina.public.post_scores
 				(post_id, upvotes, downvotes, top, hot, best, controversial)
 				VALUES
@@ -133,7 +134,7 @@ class Scoring(DBI) :
 		ScoreCache.put(post_id, score)
 
 		user_vote = 0 if upvote is None else (1 if upvote else -1)
-		VoteCache.put(f'{user.user_id}.{post_id}', user_vote)
+		ensure_future(VoteCache.put_async(f'{user.user_id}|{post_id}', user_vote))
 
 		return Score(
 			**score,

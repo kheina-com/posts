@@ -83,7 +83,7 @@ async def v1Post(req: Request, post_id: PostId) -> Post :
 async def v1Vote(req: Request, body: VoteRequest) -> Score :
 	await req.user.authenticated(Scope.user)
 	vote = True if body.vote > 0 else False if body.vote < 0 else None
-	return posts.vote(req.user, body.post_id, vote)
+	return await posts.vote(req.user, body.post_id, vote)
 
 
 @app.post('/v1/fetch_posts', responses={ 200: { 'model': List[Post] } })
