@@ -98,7 +98,7 @@ class Scoring(DBI) :
 			created: float = data[2].timestamp()
 
 			top: int = up - down
-			hot: float = hot(up, down, created)
+			h: float = hot(up, down, created)
 			best: float = confidence(up, total)
 			cont: float = controversial(up, down)
 
@@ -118,8 +118,8 @@ class Scoring(DBI) :
 					WHERE post_scores.post_id = %s;
 				""",
 				(
-					post_id.int(), up, down, top, hot, best, cont,
-					up, down, top, hot, best, cont, post_id.int(),
+					post_id.int(), up, down, top, h, best, cont,
+					up, down, top, h, best, cont, post_id.int(),
 				),
 			)
 
