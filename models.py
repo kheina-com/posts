@@ -10,16 +10,6 @@ from pydantic import BaseModel, validator
 PostIdValidator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
 
 
-@unique
-class PostSort(Enum) :
-	new: str = 'new'
-	old: str = 'old'
-	top: str = 'top'
-	hot: str = 'hot'
-	best: str = 'best'
-	controversial: str = 'controversial'
-
-
 class VoteRequest(BaseModel) :
 	_post_id_validator = PostIdValidator
 
