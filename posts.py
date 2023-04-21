@@ -32,8 +32,8 @@ class Posts(Scoring) :
 
 
 	@HttpErrorHandler('processing vote')
-	def vote(self, user: KhUser, post_id: str, upvote: Optional[bool]) -> Score :
-		return self._vote(user, post_id, upvote)
+	async def vote(self, user: KhUser, post_id: str, upvote: Optional[bool]) -> Score :
+		return await self._vote(user, post_id, upvote)
 
 
 	def parse_response(self, data: List[List[Any]]) -> List[InternalPost] :
