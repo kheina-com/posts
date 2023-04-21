@@ -4,11 +4,11 @@ from datetime import timedelta
 from typing import Any, Callable, List, Optional, Tuple
 
 from fuzzly.internal import InternalClient
-from kh_common.config.credentials import fuzzly_client_token
-from fuzzly.models.internal import InternalPost, PostKVS
+from fuzzly.models.internal import InternalPost, InternalPosts, PostKVS
 from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
+from kh_common.config.credentials import fuzzly_client_token
 from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
@@ -83,7 +83,7 @@ class Posts(Scoring) :
 
 
 	@ArgsCache(60)
-	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) -> List[InternalPost] :
+	async def _fetch_posts(self, sort: PostSort, tags: Tuple[str], count: int, page: int) -> InternalPosts :
 		idk = { }
 
 		if tags :
@@ -377,7 +377,7 @@ class Posts(Scoring) :
 			**idk,
 		})
 
-		return parser(await self.query_async(query, fetch_all=True))
+		return InternalPosts(post_list=parser(await self.query_async(query, fetch_all=True)))
 
 
 	@HttpErrorHandler('fetching posts')
@@ -385,13 +385,8 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: Task[List[InternalPost]] = self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
-		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in await posts]
-
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		posts: InternalPosts = await self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
+		return await posts.posts(client, user)
 
 
 	@SimpleCache(float('inf'))
