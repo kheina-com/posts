@@ -1,4 +1,3 @@
-from enum import Enum, unique
 from typing import List, Optional, Union
 
 from fuzzly.models.post import PostId, PostSort

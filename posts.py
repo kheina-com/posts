@@ -50,12 +50,12 @@ class Posts(Scoring) :
 					updated=row[6],
 					filename=row[7],
 					media_type=self._get_media_type_map()[row[8]],
-					user_id=row[11],
 					size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
+					user_id=row[11],
 					privacy=self._get_privacy_map()[row[12]],
 				)
 				posts.append(post)
-				PostKVS.put(post.post_id, post)
+				ensure_future(PostKVS.put_async(post.post_id, post))
 
 			return posts
 
@@ -436,30 +436,25 @@ class Posts(Scoring) :
 		})
 
 
-	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=PostKVS)
+	@AerospikeCache('kheina', 'posts', '{post_id}', read_only=True, _kvs=PostKVS)
 	async def _get_post(self, post_id: PostId) -> InternalPost :
-		data = self.query("""
+		data = await self.query_async("""
 			SELECT
 				posts.post_id,
 				posts.title,
 				posts.description,
-				users.handle,
-				users.user_id,
-				posts.created_on,
-				posts.updated_on,
-				posts.privacy_id,
-				posts.media_type_id,
-				posts.filename,
 				posts.rating,
 				posts.parent,
+				posts.created_on,
+				posts.updated_on,
+				posts.filename,
+				posts.media_type_id,
 				posts.width,
-				posts.height
+				posts.height,
+				posts.uploader,
+				posts.privacy_id
 			FROM kheina.public.posts
-				INNER JOIN kheina.public.users
-					ON posts.uploader = users.user_id
-				LEFT JOIN kheina.public.post_scores
-					ON post_scores.post_id = posts.post_id
-			WHERE posts.post_id = %s
+			WHERE posts.post_id = %s;
 			""",
 			(post_id.int(),),
 			fetch_one=True,
@@ -468,59 +463,38 @@ class Posts(Scoring) :
 		if not data :
 			raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
-		return InternalPost(
-			post_id=data[0],
-			title=data[1],
-			description=data[2],
-			user=data[3],
-			user_id=data[4],
-			created=data[5],
-			updated=data[6],
-			rating=self._get_rating_map()[data[10]],
-			parent=data[11],
-			privacy=self._get_privacy_map()[data[7]],
-			filename=data[9],
-			media_type=self._get_media_type_map()[data[8]],
-			size=PostSize(width=data[12], height=data[13]) if data[12] and data[13] else None,
-		)
+		return self.parse_response([data])[0]
 
 
 	@HttpErrorHandler('retrieving post')
 	async def getPost(self, user: KhUser, post_id: PostId) -> Post :
 		post: InternalPost = await self._get_post(post_id)
 
-		if (
-			post.privacy in { Privacy.public, Privacy.unlisted } or
-			(post.user_id == user.user_id and await user.authenticated(raise_error=False))
-			# add additional check here to see if post is private, but user was given permission to view
-		) :
+		if await post.authorized(client, user) :
 			return await post.post(client, user)
 
 		raise NotFound(f'no data was found for the provided post id: {post_id}.')
 
 
 	@ArgsCache(5)
-	async def _getComments(self, post_id: PostId, sort: PostSort, count: int, page: int) -> List[InternalPost] :
+	async def _getComments(self, post_id: PostId, sort: PostSort, count: int, page: int) -> InternalPosts :
 		# TODO: fix new and old sorts
 		data = await self.query_async(f"""
 			SELECT
 				posts.post_id,
 				posts.title,
 				posts.description,
-				users.handle,
 				posts.rating,
+				posts.parent,
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
 				posts.media_type_id,
 				posts.width,
 				posts.height,
-				users.user_id
+				posts.uploader,
+				posts.privacy_id
 			FROM kheina.public.posts
-				INNER JOIN kheina.public.users
-					ON posts.uploader = users.user_id
-				LEFT JOIN kheina.public.post_scores
-					ON post_scores.post_id = posts.post_id
 			WHERE posts.parent = %s
 				AND posts.privacy_id = privacy_to_id('public')
 			ORDER BY post_scores.{sort.name} DESC NULLS LAST
@@ -535,28 +509,7 @@ class Posts(Scoring) :
 			fetch_all=True,
 		)
 
-		posts: List[InternalPost] = []
-
-		for row in data :
-			post = InternalPost(
-				post_id=row[0],
-				title=row[1],
-				description=row[2],
-				user=row[3],
-				rating=self._get_rating_map()[row[4]],
-				privacy=Privacy.public,
-				parent=post_id.int(),
-				created=row[5],
-				updated=row[6],
-				filename=row[7],
-				media_type=self._get_media_type_map()[row[8]],
-				user_id=row[11],
-				size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
-			)
-			posts.append(post)
-			PostKVS.put(post.post_id, post)
-
-		return posts
+		return InternalPosts(post_list=self.parse_response(data))
 
 
 	@HttpErrorHandler('retrieving comments')
@@ -564,12 +517,8 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in await self._getComments(post_id, sort, count, page)]
-
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		posts: InternalPosts = await self._getComments(post_id, sort, count, page)
+		return await posts.posts(client, user)
 
 
 	@ArgsCache(10)
@@ -661,65 +610,35 @@ class Posts(Scoring) :
 
 
 	@ArgsCache(5)
-	async def _fetch_user_posts(self, handle: str, count: int, page: int) -> List[InternalPost] :
+	async def _fetch_user_posts(self, handle: str, count: int, page: int) -> InternalPosts :
+		user_id: int = await client.user_handle_to_id(handle)
 		data = await self.query_async(f"""
 			SELECT DISTINCT
 				posts.post_id,
 				posts.title,
 				posts.description,
-				u2.handle,
 				posts.rating,
+				posts.parent,
 				posts.created_on,
 				posts.updated_on,
 				posts.filename,
 				posts.media_type_id,
 				posts.width,
 				posts.height,
-				users.user_id,
-				posts.parent
-			FROM kheina.public.users u
-				INNER JOIN kheina.public.tags
-					ON tags.owner = u.user_id
-				INNER JOIN kheina.public.tag_post
-					ON tag_post.tag_id = tags.tag_id
-				INNER JOIN kheina.public.posts
-					ON posts.post_id = tag_post.post_id
-				INNER JOIN kheina.public.post_scores
-					ON post_scores.post_id = posts.post_id
-				INNER JOIN kheina.public.users u2
-					ON posts.uploader = u2.user_id
-			WHERE u.handle = %s
+				posts.uploader,
+				posts.privacy_id
+			FROM kheina.public.posts
+			WHERE posts.uploader = %s
 				AND posts.privacy_id = privacy_to_id('public')
 			ORDER BY posts.created_on DESC
 			LIMIT %s
 			OFFSET %s;
 			""",
-			(handle, count, count * (page - 1)),
+			(user_id, count, count * (page - 1)),
 			fetch_all=True,
 		)
 
-		posts: List[InternalPost] = []
-
-		for row in data :
-			post = InternalPost(
-				post_id=row[0],
-				title=row[1],
-				description=row[2],
-				user=row[3],
-				rating=self._get_rating_map()[row[4]],
-				privacy=Privacy.public,
-				created=row[5],
-				updated=row[6],
-				filename=row[7],
-				media_type=self._get_media_type_map()[row[8]],
-				size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
-				user_id=row[11],
-				parent=row[12],
-			)
-			posts.append(post)
-			PostKVS.put(post.post_id, post)
-
-		return posts
+		return InternalPosts(post_list=self.parse_response(data))
 
 
 	@HttpErrorHandler('retrieving user posts')
@@ -727,15 +646,11 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: List[Task[Post]] = [ensure_future(post.post(client, user)) for post in await self._fetch_user_posts(handle, count, page)]
-
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		posts: InternalPosts = await self._fetch_user_posts(handle, count, page)
+		return await posts.posts(client, user)
 
 
-	async def _fetch_own_posts(self, user_id: int, sort: PostSort, count: int, page: int) -> List[InternalPost] :
+	async def _fetch_own_posts(self, user_id: int, sort: PostSort, count: int, page: int) -> InternalPosts :
 		query = Query(
 			Table('kheina.public.posts')
 		).join(
@@ -787,7 +702,7 @@ class Posts(Scoring) :
 			)
 
 		parser = self.internal_select(query)
-		return parser(await self.query_async(query, fetch_all=True))
+		return InternalPosts(post_list=parser(await self.query_async(query, fetch_all=True)))
 
 
 	@HttpErrorHandler("retrieving user's own posts")
@@ -796,13 +711,8 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: List[InternalPost] = await self._fetch_own_posts(user.user_id, sort, count, page)
-		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
-
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		posts: InternalPosts = await self._fetch_own_posts(user.user_id, sort, count, page)
+		return await posts.posts(client, user)
 
 
 	@HttpErrorHandler("retrieving user's drafts")
@@ -838,10 +748,6 @@ class Posts(Scoring) :
 		)
 
 		parser = self.internal_select(query)
-		posts: List[InternalPost] = parser(await self.query_async(query, fetch_all=True))
-		posts: Task[List[Post]] = [ensure_future(post.post(client, user)) for post in posts]
+		posts: InternalPosts = InternalPosts(post_list=parser(await self.query_async(query, fetch_all=True)))
 
-		if posts :
-			await wait(posts)
-
-		return list(map(Task.result, posts))
+		return await posts.posts(client, user)
