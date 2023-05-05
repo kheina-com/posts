@@ -495,6 +495,8 @@ class Posts(Scoring) :
 				posts.uploader,
 				posts.privacy_id
 			FROM kheina.public.posts
+				LEFT JOIN kheina.public.post_scores
+					ON post_scores.post_id = posts.post_id
 			WHERE posts.parent = %s
 				AND posts.privacy_id = privacy_to_id('public')
 			ORDER BY post_scores.{sort.name} DESC NULLS LAST
