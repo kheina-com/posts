@@ -117,7 +117,7 @@ class Posts(Scoring) :
 		# added in the future when there are more posts
 		factor: float = 1.1
 
-		counts: List[Dict[str, Union[bool, int]]] = { }
+		counts: List[Dict[str, Union[bool, int]]] = []
 
 		for tag in tags :
 			invert: bool = False
