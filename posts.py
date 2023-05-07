@@ -138,7 +138,7 @@ class Posts(Scoring) :
 		count: float = total
 		for c, i in sorted(counts, key=lambda x : x[0], reverse=True) :
 			value = (c / total) * f
-			f /= factor
+			f *= factor
 
 			if i :
 				count *= 1 - value
