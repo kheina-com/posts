@@ -13,8 +13,8 @@ from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
-from scoring import Scoring
 from models import SearchResults
+from scoring import Scoring
 
 
 client: InternalClient = InternalClient(fuzzly_client_token)

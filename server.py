@@ -12,7 +12,7 @@ from kh_common.models.auth import Scope
 from kh_common.models.user import User
 from kh_common.server import Request, Response, ServerApp
 
-from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, TimelineRequest, VoteRequest
+from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, SearchResults, TimelineRequest, VoteRequest
 from posts import Posts
 
 
@@ -86,9 +86,9 @@ async def v1Vote(req: Request, body: VoteRequest) -> Score :
 	return await posts.vote(req.user, body.post_id, vote)
 
 
-@app.post('/v1/fetch_posts', responses={ 200: { 'model': List[Post] } })
-@app.post('/v1/posts', responses={ 200: { 'model': List[Post] } })
-async def v1FetchPosts(req: Request, body: FetchPostsRequest) -> List[Post] :
+@app.post('/v1/fetch_posts', responses={ 200: { 'model': SearchResults } })
+@app.post('/v1/posts', responses={ 200: { 'model': SearchResults } })
+async def v1FetchPosts(req: Request, body: FetchPostsRequest) -> SearchResults :
 	return await posts.fetchPosts(req.user, body.sort, body.tags, body.count, body.page)
 
 
