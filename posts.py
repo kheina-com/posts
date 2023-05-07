@@ -1,7 +1,7 @@
 from asyncio import Task, ensure_future
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from fuzzly.internal import InternalClient
 from fuzzly.models.internal import InternalPost, InternalPosts, PostKVS
@@ -111,7 +111,14 @@ class Posts(Scoring) :
 		returns an estimate on the total number of results available for a given query
 		"""
 		total: int = await self.post_count('_')
-		count: float = total
+		
+		# since this is just an estimate, after all, we're going to count the tags with the fewest posts higher
+		# this value may need to be revisited, or removed altogether, or a more intelligent estimation system
+		# added in the future when there are more posts
+		factor: float = 1.1
+
+		counts: List[Dict[str, Union[bool, int]]] = { }
+
 		for tag in tags :
 			invert: bool = False
 
@@ -124,13 +131,20 @@ class Posts(Scoring) :
 				user_id: int = await client.user_handle_to_id(handle)
 				tag = f'@{user_id}'
 
-			tag_count: int = await self.post_count(tag)
+			counts.append((await self.post_count(tag), invert))
 
-			if invert :
-				count *= 1 - tag_count / total
+		# sort highest values first
+		f: float = 1
+		count: float = total
+		for c, i in sorted(counts, key=lambda x : x[0], reverse=True) :
+			value = (c / total) * f
+			f /= factor
+
+			if i :
+				count *= 1 - value
 
 			else :
-				count *= tag_count / total
+				count *= value
 
 		return int(count)
 
