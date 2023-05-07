@@ -1,4 +1,4 @@
-from asyncio import Task, ensure_future, wait
+from asyncio import Task, ensure_future
 from collections import defaultdict
 from datetime import timedelta
 from typing import Any, Callable, List, Optional, Tuple
@@ -14,6 +14,7 @@ from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFou
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
 
 from scoring import Scoring
+from models import SearchResults
 
 
 client: InternalClient = InternalClient(fuzzly_client_token)
@@ -34,6 +35,104 @@ class Posts(Scoring) :
 	@HttpErrorHandler('processing vote')
 	async def vote(self, user: KhUser, post_id: str, upvote: Optional[bool]) -> Score :
 		return await self._vote(user, post_id, upvote)
+
+
+	@AerospikeCache('kheina', 'tag_count', '{tag}', TTL_seconds=-1, local_TTL=600)
+	async def post_count(self, tag: str) -> int :
+		"""
+		use '_' to indicate total public posts.
+		use the format '@{user_id}' to get the count of posts uploaded by a user
+		"""
+		if tag == '_' :
+			# we gotta populate it here (sad)
+			data = await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.posts
+				WHERE posts.privacy_id = privacy_to_id('public');
+				""",
+				fetch_one=True,
+			)
+
+		elif tag.startswith('@') :
+			user_id = int(tag[1:])
+			data = await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.posts
+				WHERE posts.uploader = %s
+					AND posts.privacy_id = privacy_to_id('public');
+				""",
+				(user_id,),
+				fetch_one=True,
+			)
+
+		elif tag.startswith('@') :
+			user_id = int(tag[1:])
+			data = await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.posts
+				WHERE posts.uploader = %s
+					AND posts.privacy_id = privacy_to_id('public');
+				""",
+				(user_id,),
+				fetch_one=True,
+			)
+
+		elif tag in Rating.__members__ :
+			data = await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.posts
+				WHERE posts.rating = %s
+					AND posts.privacy_id = privacy_to_id('public');
+				""",
+				(self._rating_to_id()[tag],),
+				fetch_one=True,
+			)
+
+		else :
+			data = await self.query_async("""
+				SELECT COUNT(1)
+				FROM kheina.public.tags
+					INNER JOIN kheina.public.tag_post
+						ON tags.tag_id = tag_post.tag_id
+					INNER JOIN kheina.public.posts
+						ON tag_post.post_id = posts.post_id
+							AND posts.privacy_id = privacy_to_id('public')
+				WHERE tags.tag = %s;
+				""",
+				(tag,),
+				fetch_one=True,
+			)
+
+		return int(data[0])
+
+
+	async def total_results(self, tags: List[str]) -> int :
+		"""
+		returns an estimate on the total number of results available for a given query
+		"""
+		total: int = await self.post_count('_')
+		count: float = total
+		for tag in tags :
+			invert: bool = False
+
+			if tag.startswith('-') :
+				tag = tag[1:]
+				invert = True
+
+			if tag.startswith('@') :
+				handle: str = tag[1:]
+				user_id: int = await client.user_handle_to_id(handle)
+				tag = f'@{user_id}'
+
+			tag_count: int = await self.post_count(tag)
+
+			if invert :
+				count *= 1 - tag_count / total
+
+			else :
+				count *= tag_count / total
+
+		return int(count)
 
 
 	def parse_response(self, data: List[List[Any]]) -> List[InternalPost] :
@@ -379,12 +478,29 @@ class Posts(Scoring) :
 
 
 	@HttpErrorHandler('fetching posts')
-	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Optional[List[str]], count:int=64, page:int=1) -> List[Post] :
+	async def fetchPosts(self, user: KhUser, sort: PostSort, tags: Optional[List[str]], count:int=64, page:int=1) -> SearchResults :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: InternalPosts = await self._fetch_posts(sort, tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags)))))) if tags else None, count, page)
-		return await posts.posts(client, user)
+		total: Task[int]
+
+		if tags :
+			tags: Tuple[str] = tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags))))))
+			total = ensure_future(self.total_results(tags))
+
+		else :
+			tags = None
+			total = ensure_future(self.post_count('_'))
+
+		iposts: InternalPosts = await self._fetch_posts(sort, tags, count, page)
+		posts: List[Post] = await iposts.posts(client, user)
+
+		return SearchResults(
+			posts = posts,
+			count = len(posts),
+			page = page,
+			total = await total,
+		)
 
 
 	@SimpleCache(float('inf'))

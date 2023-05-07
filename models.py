@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from fuzzly.models.post import PostId, PostSort
+from fuzzly.models.post import PostId, PostSort, Post
 from kh_common.config.constants import Environment, environment
 from kh_common.config.repo import short_hash
 from pydantic import BaseModel, validator
@@ -39,6 +39,13 @@ class GetUserPostsRequest(BaseModel) :
 	handle: str
 	count: Optional[int] = 64
 	page: Optional[int] = 1
+
+
+class SearchResults(BaseModel) :
+	posts: List[Post]
+	count: int
+	page: int
+	total: int
 
 
 RssFeed = f"""<rss version="2.0">
