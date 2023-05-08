@@ -65,18 +65,6 @@ class Posts(Scoring) :
 				fetch_one=True,
 			)
 
-		elif tag.startswith('@') :
-			user_id = int(tag[1:])
-			data = await self.query_async("""
-				SELECT COUNT(1)
-				FROM kheina.public.posts
-				WHERE posts.uploader = %s
-					AND posts.privacy_id = privacy_to_id('public');
-				""",
-				(user_id,),
-				fetch_one=True,
-			)
-
 		elif tag in Rating.__members__ :
 			data = await self.query_async("""
 				SELECT COUNT(1)
@@ -113,8 +101,11 @@ class Posts(Scoring) :
 		total: int = await self.post_count('_')
 		
 		# since this is just an estimate, after all, we're going to count the tags with the fewest posts higher
-		# this value may need to be revisited, or removed altogether, or a more intelligent estimation system
+		# TODO: this value may need to be revisited, or removed altogether, or a more intelligent estimation system
 		# added in the future when there are more posts
+
+		# TODO: is it cheap enough to just actually run these queries?
+
 		factor: float = 1.1
 
 		counts: List[Dict[str, Union[bool, int]]] = []
@@ -649,6 +640,7 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
+		# TODO: if there ever comes a time when there are thousands of comments on posts, this may need to be revisited.
 		posts: InternalPosts = await self._getComments(post_id, sort, count, page)
 		return await posts.posts(client, user)
 
@@ -741,45 +733,21 @@ class Posts(Scoring) :
 		return now, await posts.posts(client, user)
 
 
-	@ArgsCache(5)
-	async def _fetch_user_posts(self, handle: str, count: int, page: int) -> InternalPosts :
-		user_id: int = await client.user_handle_to_id(handle)
-		data = await self.query_async(f"""
-			SELECT DISTINCT
-				posts.post_id,
-				posts.title,
-				posts.description,
-				posts.rating,
-				posts.parent,
-				posts.created_on,
-				posts.updated_on,
-				posts.filename,
-				posts.media_type_id,
-				posts.width,
-				posts.height,
-				posts.uploader,
-				posts.privacy_id
-			FROM kheina.public.posts
-			WHERE posts.uploader = %s
-				AND posts.privacy_id = privacy_to_id('public')
-			ORDER BY posts.created_on DESC
-			LIMIT %s
-			OFFSET %s;
-			""",
-			(user_id, count, count * (page - 1)),
-			fetch_all=True,
-		)
-
-		return InternalPosts(post_list=self.parse_response(data))
-
-
 	@HttpErrorHandler('retrieving user posts')
-	async def fetchUserPosts(self, user: KhUser, handle: str, count: int, page: int) -> List[Post] :
+	async def fetchUserPosts(self, user: KhUser, handle: str, count: int, page: int) -> SearchResults :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		posts: InternalPosts = await self._fetch_user_posts(handle, count, page)
-		return await posts.posts(client, user)
+		total: Task[int] = ensure_future(self.total_results(f'@{await client.user_handle_to_id(handle)}'))
+		iposts: InternalPosts = await self._fetch_posts(PostSort.new, (f'@{handle}',), count, page)
+		posts: List[Post] = await iposts.posts(client, user)
+
+		return SearchResults(
+			posts=posts,
+			count=len(posts),
+			page=page,
+			total=await total,
+		)
 
 
 	async def _fetch_own_posts(self, user_id: int, sort: PostSort, count: int, page: int) -> InternalPosts :

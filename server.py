@@ -100,7 +100,7 @@ async def v1FetchComments(req: Request, body: FetchCommentsRequest) -> List[Post
 
 @app.post('/v1/fetch_user_posts', responses={ 200: { 'model': List[Post] } })
 @app.post('/v1/user_posts', responses={ 200: { 'model': List[Post] } })
-async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) -> List[Post] :
+async def v1FetchUserPosts(req: Request, body: GetUserPostsRequest) -> SearchResults :
 	return await posts.fetchUserPosts(req.user, body.handle, body.count, body.page)
 
 
