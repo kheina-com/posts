@@ -738,8 +738,9 @@ class Posts(Scoring) :
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
-		total: Task[int] = ensure_future(self.total_results((f'@{await client.user_handle_to_id(handle)}',)))
-		iposts: InternalPosts = await self._fetch_posts(PostSort.new, (f'@{handle}',), count, page)
+		tags: Tuple[str] = (f'@{handle}',)
+		total: Task[int] = ensure_future(self.total_results(tags))
+		iposts: InternalPosts = await self._fetch_posts(PostSort.new, tags, count, page)
 		posts: List[Post] = await iposts.posts(client, user)
 
 		return SearchResults(
