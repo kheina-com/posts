@@ -1,6 +1,7 @@
 from asyncio import Task, ensure_future
 from collections import defaultdict
 from datetime import timedelta
+from math import ceil
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from fuzzly.internal import InternalClient
@@ -137,7 +138,7 @@ class Posts(Scoring) :
 			else :
 				count *= value
 
-		return int(count)
+		return ceil(count)
 
 
 	def parse_response(self, data: List[List[Any]]) -> List[InternalPost] :
@@ -557,7 +558,7 @@ class Posts(Scoring) :
 		})
 
 
-	@AerospikeCache('kheina', 'posts', '{post_id}', read_only=True, _kvs=PostKVS)
+	@AerospikeCache('kheina', 'posts', '{post_id}', _kvs=PostKVS)
 	async def _get_post(self, post_id: PostId) -> InternalPost :
 		data = await self.query_async("""
 			SELECT
