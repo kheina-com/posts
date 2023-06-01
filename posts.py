@@ -24,6 +24,13 @@ client: InternalClient = InternalClient(fuzzly_client_token)
 
 class Posts(Scoring) :
 
+	def _normalize_tag(tag: str) :
+		if tag.startswith('set:') :
+			return tag
+
+		return tag.lower()
+
+
 	def _validatePageNumber(self, page_number: int) :
 		if page_number < 1 :
 			raise BadRequest(f'the given page number is invalid: {page_number}. page number must be greater than or equal to 1.', page_number=page_number)
@@ -547,7 +554,7 @@ class Posts(Scoring) :
 		total: Task[int]
 
 		if tags :
-			tags: Tuple[str] = tuple(sorted(map(str.lower, filter(None, map(str.strip, filter(None, tags))))))
+			tags: Tuple[str] = tuple(sorted(map(Posts._normalize_tag, filter(None, map(str.strip, filter(None, tags))))))
 			total = ensure_future(self.total_results(tags))
 
 		else :
@@ -792,6 +799,7 @@ class Posts(Scoring) :
 
 	@HttpErrorHandler('retrieving user posts')
 	async def fetchUserPosts(self, user: KhUser, handle: str, count: int, page: int) -> SearchResults :
+		handle = handle.lower()
 		self._validatePageNumber(page)
 		self._validateCount(count)
 
