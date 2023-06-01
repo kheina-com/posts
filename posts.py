@@ -5,8 +5,9 @@ from math import ceil
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from fuzzly.internal import InternalClient
-from fuzzly.models.internal import InternalPost, InternalPosts, PostKVS
+from fuzzly.models.internal import InternalPost, InternalPosts, PostKVS, InternalSet
 from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
+from fuzzly.models.set import SetId
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.config.credentials import fuzzly_client_token
@@ -44,6 +45,9 @@ class Posts(Scoring) :
 		use '_' to indicate total public posts.
 		use the format '@{user_id}' to get the count of posts uploaded by a user
 		"""
+
+		count: float = 0
+
 		if tag == '_' :
 			# we gotta populate it here (sad)
 			data = await self.query_async("""
@@ -53,6 +57,7 @@ class Posts(Scoring) :
 				""",
 				fetch_one=True,
 			)
+			count = data[0]
 
 		elif tag.startswith('@') :
 			user_id = int(tag[1:])
@@ -65,6 +70,7 @@ class Posts(Scoring) :
 				(user_id,),
 				fetch_one=True,
 			)
+			count = data[0]
 
 		elif tag in Rating.__members__ :
 			data = await self.query_async("""
@@ -76,6 +82,7 @@ class Posts(Scoring) :
 				(self._rating_to_id()[tag],),
 				fetch_one=True,
 			)
+			count = data[0]
 
 		else :
 			data = await self.query_async("""
@@ -91,8 +98,9 @@ class Posts(Scoring) :
 				(tag,),
 				fetch_one=True,
 			)
+			count = data[0]
 
-		return int(data[0])
+		return round(count)
 
 
 	async def total_results(self, tags: List[str]) -> int :
@@ -117,6 +125,12 @@ class Posts(Scoring) :
 			if tag.startswith('-') :
 				tag = tag[1:]
 				invert = True
+
+			if tag.startswith('set:') :
+				# sets track their own counts
+				iset: InternalSet = await client.set(tag[4:])
+				counts.append((iset.count, invert))
+				continue
 
 			if tag.startswith('@') :
 				handle: str = tag[1:]
@@ -199,6 +213,9 @@ class Posts(Scoring) :
 			include_rating = []
 			exclude_rating = []
 
+			include_sets = []
+			exclude_sets = []
+
 			for tag in tags :
 				exclude = tag.startswith('-')
 
@@ -213,6 +230,9 @@ class Posts(Scoring) :
 				if tag in { 'general', 'mature', 'explicit' } :
 					(exclude_rating if exclude else include_rating).append(tag)
 					continue
+
+				if tag.startswith('set:') :
+					(exclude_sets if exclude else include_sets).append(SetId(tag[4:]))
 
 				if tag.startswith('sort:') :
 					try :
@@ -230,6 +250,8 @@ class Posts(Scoring) :
 
 			if len(include_rating) > 1 :
 				raise BadRequest('can only search for posts from, at most, one rating at a time.')
+
+			query: Query
 
 			if include_tags or exclude_tags :
 				query = Query(
@@ -401,6 +423,38 @@ class Posts(Scoring) :
 					),
 				)
 
+			if include_sets or exclude_sets :
+				join_sets: Join = Join(
+					JoinType.inner,
+					Table('kheina.public.set_post'),
+				).where(
+					Where(
+						Field('set_post', 'post_id'),
+						Operator.equal,
+						Field('posts', 'post_id'),
+					),
+				)
+
+				if include_sets :
+					join_sets.where(
+						Where(
+							Field('set_post', 'set_id'),
+							Operator.equal,
+							Value(include_sets, 'all'),
+						),
+					)
+
+				if exclude_sets :
+					join_sets.where(
+						Where(
+							Field('set_post', 'set_id'),
+							Operator.not_equal,
+							Value(exclude_sets, 'any'),
+						),
+					)
+
+				query.join(join_sets)
+
 			idk = {
 				'tags': tags,
 				'include_tags': include_tags,
@@ -409,6 +463,8 @@ class Posts(Scoring) :
 				'exclude_users': exclude_users,
 				'include_rating': include_rating,
 				'exclude_rating': exclude_rating,
+				'include_sets': include_sets,
+				'exclude_sets': exclude_sets,
 			}
 
 		else :
