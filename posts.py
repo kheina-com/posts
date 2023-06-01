@@ -498,13 +498,27 @@ class Posts(Scoring) :
 			)
 
 		if sort in { PostSort.new, PostSort.old } :
-			query.order(
-				Field('posts', 'created_on'),
-				Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
-			).group(
-				Field('posts', 'post_id'),
-				Field('users', 'user_id'),
-			)
+
+			if len(tags) == 1 and len(include_sets) == 1 :
+				# this is a very special case, we want to hijack the new/old sorts to instead sort by set index.
+				# there's really no reason anyone would want to sort by post age for a single set
+				query.order(
+					Field('set_post', 'index'),
+					Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
+				).group(
+					Field('set_post', 'set_id'),
+					Field('posts', 'post_id'),
+					Field('users', 'user_id'),
+				)
+
+			else :
+				query.order(
+					Field('posts', 'created_on'),
+					Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
+				).group(
+					Field('posts', 'post_id'),
+					Field('users', 'user_id'),
+				)
 
 		else :
 			query.order(
