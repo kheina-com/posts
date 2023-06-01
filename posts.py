@@ -240,6 +240,7 @@ class Posts(Scoring) :
 
 				if tag.startswith('set:') :
 					(exclude_sets if exclude else include_sets).append(SetId(tag[4:]))
+					continue
 
 				if tag.startswith('sort:') :
 					try :
