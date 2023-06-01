@@ -506,7 +506,7 @@ class Posts(Scoring) :
 					Field('set_post', 'index'),
 					Order.descending_nulls_first if sort == PostSort.new else Order.ascending_nulls_last,
 				).group(
-					Field('set_post', 'post_id'),
+					Field('posts', 'post_id'),
 					Field('set_post', 'set_id'),
 					Field('set_post', 'index'),
 				)
