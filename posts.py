@@ -440,7 +440,7 @@ class Posts(Scoring) :
 						Where(
 							Field('set_post', 'set_id'),
 							Operator.equal,
-							Value(include_sets, 'all'),
+							Value(list(map(int, include_sets)), 'all'),
 						),
 					)
 
@@ -449,7 +449,7 @@ class Posts(Scoring) :
 						Where(
 							Field('set_post', 'set_id'),
 							Operator.not_equal,
-							Value(exclude_sets, 'any'),
+							Value(list(map(int, exclude_sets)), 'any'),
 						),
 					)
 
