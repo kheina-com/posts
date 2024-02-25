@@ -179,7 +179,7 @@ class Posts(Scoring) :
 					size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
 					user_id=row[11],
 					privacy=self._get_privacy_map()[row[12]],
-					thumbhash=row[13],
+					thumbhash=bytes(row[13]),
 				)
 				posts.append(post)
 				ensure_future(PostKVS.put_async(post.post_id, post))
