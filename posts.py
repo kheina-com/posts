@@ -4,19 +4,19 @@ from datetime import timedelta
 from math import ceil
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from fuzzly.internal import InternalClient
-from fuzzly.models.internal import InternalPost, InternalPosts, PostKVS, InternalSet
-from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
-from fuzzly.models.set import SetId
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache, SimpleCache
 from kh_common.config.credentials import fuzzly_client_token
 from kh_common.datetime import datetime
 from kh_common.exceptions.http_error import BadRequest, HttpErrorHandler, NotFound
 from kh_common.sql.query import Field, Join, JoinType, Operator, Order, Query, Table, Value, Where
-
 from models import SearchResults
 from scoring import Scoring
+
+from fuzzly.internal import InternalClient
+from fuzzly.models.internal import InternalPost, InternalPosts, InternalSet, PostKVS
+from fuzzly.models.post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
+from fuzzly.models.set import SetId
 
 
 client: InternalClient = InternalClient(fuzzly_client_token)
@@ -179,6 +179,7 @@ class Posts(Scoring) :
 					size=PostSize(width=row[9], height=row[10]) if row[9] and row[10] else None,
 					user_id=row[11],
 					privacy=self._get_privacy_map()[row[12]],
+					thumbhash=row[13],
 				)
 				posts.append(post)
 				ensure_future(PostKVS.put_async(post.post_id, post))
@@ -201,6 +202,7 @@ class Posts(Scoring) :
 			Field('posts', 'height'),
 			Field('posts', 'uploader'),
 			Field('posts', 'privacy_id'),
+			Field('posts', 'thumbhash'),
 		)
 
 		return self.parse_response
@@ -652,7 +654,8 @@ class Posts(Scoring) :
 				posts.width,
 				posts.height,
 				posts.uploader,
-				posts.privacy_id
+				posts.privacy_id,
+				posts.thumbhash
 			FROM kheina.public.posts
 			WHERE posts.post_id = %s;
 			""",
@@ -693,7 +696,8 @@ class Posts(Scoring) :
 				posts.width,
 				posts.height,
 				posts.uploader,
-				posts.privacy_id
+				posts.privacy_id,
+				posts.thumbhash
 			FROM kheina.public.posts
 				LEFT JOIN kheina.public.post_scores
 					ON post_scores.post_id = posts.post_id

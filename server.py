@@ -3,16 +3,16 @@ from html import escape
 from typing import List
 from urllib.parse import quote
 
-from fuzzly.models.internal import InternalPost
-from fuzzly.models.post import Post, PostId, Score
 from kh_common.backblaze import B2Interface
 from kh_common.config.constants import environment, users_host
 from kh_common.gateway import Gateway
 from kh_common.models.auth import Scope
 from kh_common.models.user import User
 from kh_common.server import Request, Response, ServerApp
-
 from models import BaseFetchRequest, FetchCommentsRequest, FetchPostsRequest, GetUserPostsRequest, RssDateFormat, RssDescription, RssFeed, RssItem, RssMedia, RssTitle, SearchResults, TimelineRequest, VoteRequest
+
+from fuzzly.models.internal import InternalPost
+from fuzzly.models.post import Post, PostId, Score
 from posts import Posts
 
 

@@ -1,9 +1,10 @@
 from typing import List, Optional, Union
 
-from fuzzly.models.post import Post, PostId, PostSort
 from kh_common.config.constants import Environment, environment
 from kh_common.config.repo import short_hash
 from pydantic import BaseModel, validator
+
+from fuzzly.models.post import Post, PostId, PostSort
 
 
 PostIdValidator = validator('post_id', pre=True, always=True, allow_reuse=True)(PostId)
